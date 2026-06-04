@@ -22,7 +22,8 @@ export default function AsistanCRM() {
     const delayDebounceFn = setTimeout(() => {
       if (searchTel.length >= 3) {
         araMusteri(searchTel);
-        if(/^\d+$/.test(searchTel.trim())) {
+        // EMNİYET KİLİDİ 1: Formun telefon alanı boşsa veya arama çubuğuyla senkronize gidiyorsa doldur
+        if(/^\d+$/.test(searchTel.trim()) && (!formData.tel || formData.tel === searchTel.trim())) {
           setFormData(prev => ({ ...prev, tel: searchTel.trim() }));
         }
       } else {
@@ -32,7 +33,7 @@ export default function AsistanCRM() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTel]);
 
-  // Pano (Clipboard) Dinleyicisi
+  // Pano (Clipboard) Dinleyicisi - Geliştirilmiş Emniyet Kilitli Sürüm
   useEffect(() => {
     const handleFocus = async () => {
       try {
@@ -40,30 +41,32 @@ export default function AsistanCRM() {
         const hamMetin = text.trim();
         const sadeceRakamMi = /^\d+$/.test(hamMetin);
 
+        // EMNİYET KİLİDİ 2: Düzenleme modundaysak veya personel zaten formda telefon alanını el ile doldurmaya başladıysa panodan gelen veri formu bozmasın!
         if (sadeceRakamMi && hamMetin.length >= 10 && hamMetin !== searchTel && !editingId) {
           setSearchTel(hamMetin);
-          setFormData(prev => ({ ...prev, tel: hamMetin }));
+          // Eğer personel formu doldurmaya başlamışsa (firma veya kişi yazdıysa), telefon alanını zorla ezme
+          if (!formData.firma && !formData.kisi) {
+            setFormData(prev => ({ ...prev, tel: hamMetin }));
+          }
         }
       } catch (err) {
-        console.log("Pano okuma izni alınamadı.");
+        console.log("Pano okuma izni alınamadı veya desteklenmiyor.");
       }
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [searchTel, editingId]);
+  }, [searchTel, editingId, formData.firma, formData.kisi]);
 
-  // AKILLANDIRILMIŞ HİBRİT ARAMA FONKSİYONU (Tel, Firma veya Kişi)
+  // Hibrit Arama Fonksiyonu
   const araMusteri = async (metin) => {
     setLoading(true);
     const aranacakMetin = metin.trim();
 
     let query = supabase.from('musteriler').select('*');
 
-    // Eğer sadece rakam girildiyse telefon odaklı ara
     if (/^\d+$/.test(aranacakMetin)) {
       query = query.ilike('tel', `%${aranacakMetin}%`);
     } else {
-      // Harf girildiyse hem firmada hem de kişi adında "VEYA" mantığıyla ara
       query = query.or(`firma.ilike.%${aranacakMetin}%,kisi.ilike.%${aranacakMetin}%`);
     }
 
@@ -77,7 +80,52 @@ export default function AsistanCRM() {
     setLoading(false);
   };
 
-  // ÇOKLU DOSYA YÜKLEME
+  // TARAYICI TARAFLI GÖRSEL SIKIŞTIRMA MOTORU (Canvas API)
+  const gorseliSikistir = (file) => {
+    return new Promise((resolve) => {
+      const okuyucu = new FileReader();
+      okuyucu.readAsDataURL(file);
+      okuyucu.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Maksimum genişlik/yükseklik sınırı (HD Standartı)
+          const MAX_BOYUT = 1280;
+          if (width > height) {
+            if (width > MAX_BOYUT) {
+              height *= MAX_BOYUT / width;
+              width = MAX_BOYUT;
+            }
+          } else {
+            if (height > MAX_BOYUT) {
+              width *= MAX_BOYUT / height;
+              height = MAX_BOYUT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Kalite oranını %70 yaparak JPEG formatına dönüştür (Muazzam boyut tasarrufu sağlar)
+          ctx.canvas.toBlob((blob) => {
+            const sikistirilmisDosya = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            });
+            resolve(sikistirilmisDosya);
+          }, 'image/jpeg', 0.7); 
+        };
+      };
+    });
+  };
+
+  // ÇOKLU DOSYA YÜKLEME (Otomatik Sıkıştırma Entegre Edilmiş)
   const handleCokluDosyaYukle = async (e) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
@@ -86,7 +134,13 @@ export default function AsistanCRM() {
       const yuklenenLinkler = [];
       const files = Array.from(e.target.files);
 
-      for (const file of files) {
+      for (let file of files) {
+        // Eğer yüklenen dosya bir görsel ise otomatik olarak arka planda sıkıştır
+        const gorselMi = ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'].includes(file.type);
+        if (gorselMi) {
+          file = await gorseliSikistir(file);
+        }
+
         const temizIsim = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
         const dosyaAdi = `${Date.now()}-${temizIsim}`;
         
@@ -108,7 +162,7 @@ export default function AsistanCRM() {
         dosyalar: [...prev.dosyalar, ...yuklenenLinkler]
       }));
 
-      alert(`${files.length} dosya başarıyla eklendi!`);
+      alert(`${files.length} dosya işlenerek başarıyla eklendi!`);
     } catch (error) {
       alert("Dosya yüklenirken hata oluştu: " + error.message);
     } finally {
@@ -218,7 +272,7 @@ export default function AsistanCRM() {
       <header className="max-w-7xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-emerald-400">⚡ Çağrı Asistanı & Hızlı Sorgu</h1>
-          <p className="text-sm text-gray-400 mt-1">Numara, Firma veya Kişi adı ile anında geçmişi sorgulayın.</p>
+          <p className="text-sm text-gray-400 mt-1">Gelişmiş mobil korumalı ve otomatik görsel sıkıştırmalı sürüm.</p>
         </div>
         {loading && <span className="text-sm text-amber-400 animate-pulse">⚡ Aranıyor...</span>}
       </header>
@@ -432,7 +486,7 @@ export default function AsistanCRM() {
                 className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-emerald-400 hover:file:bg-gray-600 cursor-pointer"
                 disabled={uploading}
               />
-              {uploading && <p className="text-xs text-amber-400 mt-1 animate-pulse">Dosyalar yükleniyor...</p>}
+              {uploading && <p className="text-xs text-amber-400 mt-1 animate-pulse">Dosyalar işleniyor ve küçültülüyor...</p>}
               
               {formData.dosyalar.length > 0 && (
                 <div className="mt-2 p-2 bg-gray-900 rounded border border-gray-700 space-y-1.5 max-h-[160px] overflow-y-auto">
