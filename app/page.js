@@ -22,7 +22,6 @@ export default function AsistanCRM() {
     const delayDebounceFn = setTimeout(() => {
       if (searchTel.length >= 3) {
         araMusteri(searchTel);
-        // EMNİYET KİLİDİ 1: Formun telefon alanı boşsa veya arama çubuğuyla senkronize gidiyorsa doldur
         if(/^\d+$/.test(searchTel.trim()) && (!formData.tel || formData.tel === searchTel.trim())) {
           setFormData(prev => ({ ...prev, tel: searchTel.trim() }));
         }
@@ -33,7 +32,7 @@ export default function AsistanCRM() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTel]);
 
-  // Pano (Clipboard) Dinleyicisi - Geliştirilmiş Emniyet Kilitli Sürüm
+  // Pano (Clipboard) Dinleyicisi
   useEffect(() => {
     const handleFocus = async () => {
       try {
@@ -41,10 +40,8 @@ export default function AsistanCRM() {
         const hamMetin = text.trim();
         const sadeceRakamMi = /^\d+$/.test(hamMetin);
 
-        // EMNİYET KİLİDİ 2: Düzenleme modundaysak veya personel zaten formda telefon alanını el ile doldurmaya başladıysa panodan gelen veri formu bozmasın!
         if (sadeceRakamMi && hamMetin.length >= 10 && hamMetin !== searchTel && !editingId) {
           setSearchTel(hamMetin);
-          // Eğer personel formu doldurmaya başlamışsa (firma veya kişi yazdıysa), telefon alanını zorla ezme
           if (!formData.firma && !formData.kisi) {
             setFormData(prev => ({ ...prev, tel: hamMetin }));
           }
@@ -80,7 +77,7 @@ export default function AsistanCRM() {
     setLoading(false);
   };
 
-  // TARAYICI TARAFLI GÖRSEL SIKIŞTIRMA MOTORU (Canvas API)
+  // Görsel Sıkıştırma Motoru
   const gorseliSikistir = (file) => {
     return new Promise((resolve) => {
       const okuyucu = new FileReader();
@@ -93,7 +90,6 @@ export default function AsistanCRM() {
           let width = img.width;
           let height = img.height;
 
-          // Maksimum genişlik/yükseklik sınırı (HD Standartı)
           const MAX_BOYUT = 1280;
           if (width > height) {
             if (width > MAX_BOYUT) {
@@ -112,7 +108,6 @@ export default function AsistanCRM() {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Kalite oranını %70 yaparak JPEG formatına dönüştür (Muazzam boyut tasarrufu sağlar)
           ctx.canvas.toBlob((blob) => {
             const sikistirilmisDosya = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
               type: 'image/jpeg',
@@ -125,7 +120,6 @@ export default function AsistanCRM() {
     });
   };
 
-  // ÇOKLU DOSYA YÜKLEME (Otomatik Sıkıştırma Entegre Edilmiş)
   const handleCokluDosyaYukle = async (e) => {
     try {
       if (!e.target.files || e.target.files.length === 0) return;
@@ -135,7 +129,6 @@ export default function AsistanCRM() {
       const files = Array.from(e.target.files);
 
       for (let file of files) {
-        // Eğer yüklenen dosya bir görsel ise otomatik olarak arka planda sıkıştır
         const gorselMi = ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'].includes(file.type);
         if (gorselMi) {
           file = await gorseliSikistir(file);
@@ -264,15 +257,17 @@ export default function AsistanCRM() {
     return '📁';
   };
 
+  // Öneriler için geçmişten gelen ilk değerleri yakala
   const sonFirmaOnerisi = results.find(item => item.firma)?.firma || '';
   const sonKisiOnerisi = results.find(item => item.kisi)?.kisi || '';
+  const sonTelOnerisi = results.find(item => item.tel)?.tel || '';
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
       <header className="max-w-7xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-emerald-400">⚡ Çağrı Asistanı & Hızlı Sorgu</h1>
-          <p className="text-sm text-gray-400 mt-1">Gelişmiş mobil korumalı ve otomatik görsel sıkıştırmalı sürüm.</p>
+          <h1 className="text-2xl font-bold text-emerald-400">Reh-ber</h1>
+          <p className="text-sm text-gray-400 mt-1">Çağrı Asistanı & Hızlı Sorgu.</p>
         </div>
         {loading && <span className="text-sm text-amber-400 animate-pulse">⚡ Aranıyor...</span>}
       </header>
@@ -313,11 +308,12 @@ export default function AsistanCRM() {
             ) : (
               <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
                 {results.map((item) => (
-                  <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow relative group">
+                  <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow relative">
                     
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2 py-1 rounded shadow">📝 Düzenle</button>
-                      <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2 py-1 rounded shadow">🗑️ Sil</button>
+                    {/* MOBİL VE MASAÜSTÜ UYUMLU DÜZENLE/SİL AKSİYON ALANI */}
+                    <div className="flex justify-end gap-2 mb-3 lg:absolute lg:top-4 lg:right-4 lg:mb-0">
+                      <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium">📝 Düzenle</button>
+                      <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium">🗑️ Sil</button>
                     </div>
 
                     <div className="flex justify-between items-start">
@@ -332,7 +328,7 @@ export default function AsistanCRM() {
                           📞 {item.tel} (Geri Ara)
                         </a>
                       </div>
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
+                      <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${
                         item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'
                       }`}>
                         {item.uygulama}
@@ -404,16 +400,27 @@ export default function AsistanCRM() {
               />
             </div>
 
-            {!editingId && (sonFirmaOnerisi || sonKisiOnerisi) && (
+            {/* TELEFON NUMARASI DA ENTEGRE EDİLMİŞ ÖNERİ ALANI */}
+            {!editingId && (sonFirmaOnerisi || sonKisiOnerisi || sonTelOnerisi) && (
               <div className="bg-emerald-950/40 border border-emerald-800 p-2.5 rounded-lg text-xs space-y-1.5">
                 <span className="text-emerald-400 font-semibold block">💡 Geçmiş Kayıtlardan Öneriler:</span>
                 <div className="flex flex-wrap gap-1.5">
+                  {sonTelOnerisi && (
+                    <button
+                      type="button"
+                      className="bg-gray-900 border border-emerald-700 text-emerald-300 hover:bg-gray-800 px-2 py-1 rounded font-mono font-bold"
+                      onClick={() => setFormData(prev => ({ ...prev, tel: sonTelOnerisi }))}
+                      title={`Tıkla ve Telefonu Doldur: ${sonTelOnerisi}`}
+                    >
+                      📞 {sonTelOnerisi}
+                    </button>
+                  )}
                   {sonFirmaOnerisi && (
                     <button
                       type="button"
-                      className="bg-gray-900 border border-emerald-700 text-gray-200 hover:bg-gray-800 px-2 py-1 rounded max-w-[180px] truncate"
+                      className="bg-gray-900 border border-emerald-700 text-gray-200 hover:bg-gray-800 px-2 py-1 rounded max-w-[150px] truncate"
                       onClick={() => setFormData(prev => ({ ...prev, firma: sonFirmaOnerisi }))}
-                      title={`Tıkla ve Doldur: ${sonFirmaOnerisi}`}
+                      title={`Tıkla ve Firmayı Doldur: ${sonFirmaOnerisi}`}
                     >
                       🏢 {sonFirmaOnerisi}
                     </button>
@@ -421,20 +428,20 @@ export default function AsistanCRM() {
                   {sonKisiOnerisi && (
                     <button
                       type="button"
-                      className="bg-gray-900 border border-emerald-700 text-gray-200 hover:bg-gray-800 px-2 py-1 rounded max-w-[150px] truncate"
+                      className="bg-gray-900 border border-emerald-700 text-gray-200 hover:bg-gray-800 px-2 py-1 rounded max-w-[130px] truncate"
                       onClick={() => setFormData(prev => ({ ...prev, kisi: sonKisiOnerisi }))}
-                      title={`Tıkla ve Doldur: ${sonKisiOnerisi}`}
+                      title={`Tıkla ve Kişiyi Doldur: ${sonKisiOnerisi}`}
                     >
                       👤 {sonKisiOnerisi}
                     </button>
                   )}
-                  {(sonFirmaOnerisi && sonKisiOnerisi) && (
+                  {(sonFirmaOnerisi && sonKisiOnerisi && sonTelOnerisi) && (
                     <button
                       type="button"
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-2 py-1 rounded text-[11px]"
-                      onClick={() => setFormData(prev => ({ ...prev, firma: sonFirmaOnerisi, kisi: sonKisiOnerisi }))}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-1 rounded text-[11px] ml-auto"
+                      onClick={() => setFormData(prev => ({ ...prev, tel: sonTelOnerisi, firma: sonFirmaOnerisi, kisi: sonKisiOnerisi }))}
                     >
-                      ⚡ İkisini de Doldur
+                      ⚡ Hepsini Doldur
                     </button>
                   )}
                 </div>
