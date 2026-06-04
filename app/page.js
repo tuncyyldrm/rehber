@@ -306,36 +306,44 @@ export default function AsistanCRM() {
                 {searchTel.length < 3 ? "Arama yapmak için en az 3 karakter girin." : "Eşleşen bir kayıt bulunamadı."}
               </div>
             ) : (
-              <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
-                {results.map((item) => (
-                  <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow relative">
-                    
-                    {/* MOBİL VE MASAÜSTÜ UYUMLU DÜZENLE/SİL AKSİYON ALANI */}
-                    <div className="flex justify-end gap-2 mb-3 lg:absolute lg:top-4 lg:right-4 lg:mb-0">
-                      <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium">📝 Düzenle</button>
-                      <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium">🗑️ Sil</button>
-                    </div>
+<div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
+  {results.map((item) => (
+    <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow">
+      
+      {/* BAŞLIK VE AKSİYON ALANI (BİRBİRİNİ EZMEYEN DÜZEN) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-3">
+        
+        {/* Sol Taraf: Zaman, Firma ve Müşteri Bilgileri */}
+        <div className="min-w-0 flex-1">
+          <span className="text-xs text-gray-500 font-mono">
+            {new Date(item.created_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+          </span>
+          <h4 className="text-lg font-bold text-white uppercase mt-1 truncate">{item.firma || "Bilinmeyen Firma"}</h4>
+          <p className="text-sm text-gray-300">Yetkili: <span className="font-semibold">{item.kisi || "Belirtilmemiş"}</span></p>
+          
+          <a href={`tel:${item.tel}`} className="inline-flex items-center text-xs text-emerald-400 hover:underline mt-2 font-mono bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800 w-auto">
+            📞 {item.tel} (Geri Ara)
+          </a>
+        </div>
 
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <span className="text-xs text-gray-500 font-mono">
-                          {new Date(item.created_at).toLocaleString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}
-                        </span>
-                        <h4 className="text-lg font-bold text-white uppercase mt-1">{item.firma || "Bilinmeyen Firma"}</h4>
-                        <p className="text-sm text-gray-300">Yetkili: <span className="font-semibold">{item.kisi || "Belirtilmemiş"}</span></p>
-                        
-                        <a href={`tel:${item.tel}`} className="inline-flex items-center text-xs text-emerald-400 hover:underline mt-1 font-mono bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800">
-                          📞 {item.tel} (Geri Ara)
-                        </a>
-                      </div>
-                      <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${
-                        item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'
-                      }`}>
-                        {item.uygulama}
-                      </span>
-                    </div>
+        {/* Sağ Taraf: Uygulama Etiketi ve İşlem Butonları */}
+        <div className="flex sm:flex-col items-end gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
+          <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${
+            item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'
+          }`}>
+            {item.uygulama}
+          </span>
+          
+          <div className="flex gap-1.5 mt-auto sm:mt-1">
+            <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition">📝 Düzenle</button>
+            <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition">🗑️ Sil</button>
+          </div>
+        </div>
 
-                    {item.aciklama && (
+      </div>
+
+      {/* Açıklama ve Dosyalar kısımları bundan sonra aynen devam ediyor... */}
+      {item.aciklama && (
                       <p className="mt-3 text-sm bg-gray-800 p-2 rounded text-gray-300 border border-gray-700 whitespace-pre-line">
                         {item.aciklama}
                       </p>
