@@ -17,7 +17,7 @@ export default function AsistanCRM() {
     tel: '', firma: '', kisi: '', uygulama: 'Gastropos', aciklama: '', dosyalar: []
   });
 
-  // Debounce (Gecikmeli Arama) + Form Otomatik Doldurma Konforu
+  // Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchTel.length >= 3) {
@@ -52,14 +52,24 @@ export default function AsistanCRM() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [searchTel, editingId]);
 
-  const araMusteri = async (numara) => {
+  // AKILLANDIRILMIŞ HİBRİT ARAMA FONKSİYONU (Tel, Firma veya Kişi)
+  const araMusteri = async (metin) => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('musteriler')
-      .select('*')
-      .ilike('tel', `%${numara}%`)
+    const aranacakMetin = metin.trim();
+
+    let query = supabase.from('musteriler').select('*');
+
+    // Eğer sadece rakam girildiyse telefon odaklı ara
+    if (/^\d+$/.test(aranacakMetin)) {
+      query = query.ilike('tel', `%${aranacakMetin}%`);
+    } else {
+      // Harf girildiyse hem firmada hem de kişi adında "VEYA" mantığıyla ara
+      query = query.or(`firma.ilike.%${aranacakMetin}%,kisi.ilike.%${aranacakMetin}%`);
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(20); // Performans koruması: Son 20 kayıt
+      .limit(20);
 
     if (!error && data) {
       setResults(data);
@@ -200,7 +210,6 @@ export default function AsistanCRM() {
     return '📁';
   };
 
-  // ÖNERİ DETAYLARINI ÇEKME: Geçmiş sonuçlardan boş olmayan ilk firma ve kişiyi bulur
   const sonFirmaOnerisi = results.find(item => item.firma)?.firma || '';
   const sonKisiOnerisi = results.find(item => item.kisi)?.kisi || '';
 
@@ -209,22 +218,22 @@ export default function AsistanCRM() {
       <header className="max-w-7xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-emerald-400">⚡ Çağrı Asistanı & Hızlı Sorgu</h1>
-          <p className="text-sm text-gray-400 mt-1">Çağrı geçmişini yönetin, dosyaları kendi isimleriyle arşivleyin.</p>
+          <p className="text-sm text-gray-400 mt-1">Numara, Firma veya Kişi adı ile anında geçmişi sorgulayın.</p>
         </div>
-        {loading && <span className="text-sm text-amber-400 animate-pulse">⚡ Veritabanında aranıyor...</span>}
+        {loading && <span className="text-sm text-amber-400 animate-pulse">⚡ Aranıyor...</span>}
       </header>
 
       <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* SOL PANEL: ARAMA VE GEÇMİŞ GÖRÜNTÜLEME */}
         <div className="lg:col-span-7 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-          <h2 className="text-lg font-semibold mb-4 text-gray-200">🔍 Arayan Numarayı Sorgula</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-200">🔍 Akıllı Arama Çubuğu</h2>
           
           <div className="relative">
             <input
               type="text"
               autoFocus
-              placeholder="Telefon numarası yazın veya kopyalayıp sayfaya geçin..."
+              placeholder="Numara, firma adı veya kişi yazın..."
               className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 pr-12 text-xl font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-500"
               value={searchTel}
               onChange={(e) => setSearchTel(e.target.value)}
@@ -241,11 +250,11 @@ export default function AsistanCRM() {
           </div>
 
           <div className="mt-6 space-y-4">
-            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Arama Sonuçları / Çağrı Geçmişi ({results.length})</h3>
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Sonuçlar / Çağrı Geçmişi ({results.length})</h3>
             
             {results.length === 0 ? (
               <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-700 rounded-lg">
-                {searchTel.length < 3 ? "Arama yapmak için numara girin." : "Bu numara ile eşleşen bir kayıt bulunamadı."}
+                {searchTel.length < 3 ? "Arama yapmak için en az 3 karakter girin." : "Eşleşen bir kayıt bulunamadı."}
               </div>
             ) : (
               <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
@@ -322,7 +331,7 @@ export default function AsistanCRM() {
           </div>
         </div>
 
-        {/* SAĞ PANEL: FORM (YENİ KAYIT veya DÜZENLEME) */}
+        {/* SAĞ PANEL: FORM */}
         <div className="lg:col-span-5 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg h-fit">
           <h2 className="text-lg font-semibold mb-4 text-gray-200">
             {editingId ? "📝 Kaydı Düzenle" : "📞 Yeni Çağrı / Talep Logla"}
@@ -341,7 +350,6 @@ export default function AsistanCRM() {
               />
             </div>
 
-            {/* AKILLI OTO-ÖNERİ ALANI (Sadece yeni kayıt modunda ve eşleşen geçmiş varsa görünür) */}
             {!editingId && (sonFirmaOnerisi || sonKisiOnerisi) && (
               <div className="bg-emerald-950/40 border border-emerald-800 p-2.5 rounded-lg text-xs space-y-1.5">
                 <span className="text-emerald-400 font-semibold block">💡 Geçmiş Kayıtlardan Öneriler:</span>
