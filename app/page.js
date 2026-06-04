@@ -59,7 +59,6 @@ export default function AsistanCRM() {
     setLoading(true);
     const aranacakMetin = metin.trim();
 
-    // Sadece is_deleted alanı false olan (silinmemiş) kayıtları filtrele
     let query = supabase.from('musteriler').select('*').eq('is_deleted', false);
 
     if (/^\d+$/.test(aranacakMetin)) {
@@ -175,31 +174,16 @@ export default function AsistanCRM() {
   const handleKayıtSubmit = async (e) => {
     e.preventDefault();
 
-    // Temiz veri kontrolü
     const telefon = formData.tel.trim();
     const firmaAdi = formData.firma.trim();
     const kisiAdi = formData.kisi.trim();
 
-    // 1. Telefon Numarası Kontrolleri
-    if (!telefon) {
-      return alert("Hata: Telefon numarası zorunludur!");
-    }
-    if (!/^\d+$/.test(telefon)) {
-      return alert("Hata: Telefon numarası sadece rakamlardan oluşmalıdır!");
-    }
-    if (telefon.length < 10) {
-      return alert(`Hata: Telefon numarası eksik! En az 10 hane olmalıdır. (Girilen: ${telefon.length} hane)`);
-    }
+    if (!telefon) return alert("Hata: Telefon numarası zorunludur!");
+    if (!/^\d+$/.test(telefon)) return alert("Hata: Telefon numarası sadece rakamlardan oluşmalıdır!");
+    if (telefon.length < 10) return alert(`Hata: Telefon numarası eksik! En az 10 hane olmalıdır.`);
+    if (!firmaAdi) return alert("Hata: Firma Alanı boş bırakılamaz!");
+    if (!kisiAdi) return alert("Hata: Görüştüğünüz Kişi alanı boş bırakılamaz!");
 
-    // 2. Firma ve İsim Alanı Boş Bırakılamaz Kontrolleri
-    if (!firmaAdi) {
-      return alert("Hata: Firma Alanı boş bırakılamaz! Lütfen firma adını girin veya önerilerden seçin.");
-    }
-    if (!kisiAdi) {
-      return alert("Hata: Görüştüğünüz Kişi alanı boş bırakılamaz!");
-    }
-
-    // Gönderilecek veriyi temizlenmiş halleriyle güncelleyelim
     const gonderilecekVeri = {
       ...formData,
       tel: telefon,
@@ -248,18 +232,17 @@ export default function AsistanCRM() {
     });
   };
 
-const kayıtSil = async (id) => {
-    if (!confirm("Bu çağrı kaydını silmek istediğinize emin misiniz? (İstediğinizde yöneticiniz tarafından geri getirilebilir)")) return;
+  const kayıtSil = async (id) => {
+    if (!confirm("Bu çağrı kaydını silmek istediğinize emin misiniz?")) return;
     
-    // .delete() yerine .update() kullanarak veriyi korumaya alıyoruz
     const { error } = await supabase
       .from('musteriler')
       .update({ is_deleted: true }) 
       .eq('id', id);
 
     if (!error) {
-      alert("Kayıt başarıyla silindi (Arşive kaldırıldı).");
-      araMusteri(searchTel); // Listeyi yenile
+      alert("Kayıt başarıyla arşive kaldırıldı.");
+      araMusteri(searchTel);
     } else {
       alert("Silme işlemi sırasında hata oluştu: " + error.message);
     }
@@ -291,10 +274,26 @@ const kayıtSil = async (id) => {
     return '📁';
   };
 
-  // Öneriler için geçmişten gelen ilk değerleri yakala
-  const sonFirmaOnerisi = results.find(item => item.firma)?.firma || '';
-  const sonKisiOnerisi = results.find(item => item.kisi)?.kisi || '';
-  const sonTelOnerisi = results.find(item => item.tel)?.tel || '';
+  // VERİ SETİ MOTORU: Arama sonuçlarından tüm benzersiz kombinasyonları ayıkla
+  const benzersizOneriler = [];
+  const gorulenKombinasyonlar = new Set();
+
+  results.forEach(item => {
+    const tel = item.tel?.trim() || '';
+    const firma = item.firma?.trim() || '';
+    const kisi = item.kisi?.trim() || '';
+    
+    // Kombinasyonu benzersiz bir string anahtar haline getiriyoruz
+    const key = `${tel}-${firma}-${kisi}`;
+    
+    if (!gorulenKombinasyonlar.has(key) && (tel || firma || kisi)) {
+      gorulenKombinasyonlar.add(key);
+      benzersizOneriler.push({ tel, firma, kisi });
+    }
+  });
+
+  // Arayüzü çok boğmamak için en güncel 4 farklı veri setini gösterelim
+  const gosterilecekOneriler = benzersizOneriler.slice(0, 4);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
@@ -308,7 +307,7 @@ const kayıtSil = async (id) => {
 
       <main className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-        {/* SOL PANEL: ARAMA VE GEÇMİŞ GÖRÜNTÜLEME */}
+        {/* SOL PANEL: ARAMA VE GEÇMİŞ */}
         <div className="lg:col-span-7 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
           <h2 className="text-lg font-semibold mb-4 text-gray-200">🔍 Akıllı Arama Çubuğu</h2>
 
@@ -343,11 +342,7 @@ const kayıtSil = async (id) => {
               <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
                 {results.map((item) => (
                   <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow">
-
-                    {/* BAŞLIK VE AKSİYON ALANI (BİRBİRİNİ EZMEYEN DÜZEN) */}
                     <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-3">
-
-                      {/* Sol Taraf: Zaman, Firma ve Müşteri Bilgileri */}
                       <div className="min-w-0 flex-1">
                         <span className="text-xs text-gray-500 font-mono">
                           {new Date(item.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -360,10 +355,8 @@ const kayıtSil = async (id) => {
                         </a>
                       </div>
 
-                      {/* Sağ Taraf: Uygulama Etiketi ve İşlem Butonları */}
                       <div className="flex sm:flex-col items-end gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
-                        <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'
-                          }`}>
+                        <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'}`}>
                           {item.uygulama}
                         </span>
 
@@ -372,10 +365,8 @@ const kayıtSil = async (id) => {
                           <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition">🗑️ Sil</button>
                         </div>
                       </div>
-
                     </div>
 
-                    {/* Açıklama ve Dosyalar kısımları bundan sonra aynen devam ediyor... */}
                     {item.aciklama && (
                       <p className="mt-3 text-sm bg-gray-800 p-2 rounded text-gray-300 border border-gray-700 whitespace-pre-line">
                         {item.aciklama}
@@ -414,7 +405,6 @@ const kayıtSil = async (id) => {
                         </div>
                       </div>
                     )}
-
                   </div>
                 ))}
               </div>
@@ -422,7 +412,7 @@ const kayıtSil = async (id) => {
           </div>
         </div>
 
-        {/* SAĞ PANEL: FORM */}
+        {/* SAĞ PANEL: DİNAMİK VERİ SETLİ FORM */}
         <div className="lg:col-span-5 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg h-fit">
           <h2 className="text-lg font-semibold mb-4 text-gray-200">
             {editingId ? "📝 Kaydı Düzenle" : "📞 Yeni Çağrı / Talep Logla"}
@@ -441,50 +431,33 @@ const kayıtSil = async (id) => {
               />
             </div>
 
-            {/* TELEFON NUMARASI DA ENTEGRE EDİLMİŞ ÖNERİ ALANI */}
-            {!editingId && (sonFirmaOnerisi || sonKisiOnerisi || sonTelOnerisi) && (
-              <div className="bg-emerald-950/40 border border-emerald-800 p-2.5 rounded-lg text-xs space-y-1.5">
-                <span className="text-emerald-400 font-semibold block">💡 Geçmiş Kayıtlardan Öneriler:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {sonTelOnerisi && (
+            {/* ÇOKLU VERİ SETİ ÖNERİ ALANI */}
+            {!editingId && gosterilecekOneriler.length > 0 && (
+              <div className="bg-emerald-950/40 border border-emerald-800 p-3 rounded-lg text-xs space-y-2">
+                <span className="text-emerald-400 font-semibold block">💡 Geçmiş Kayıtlardan Eşleşen Veri Setleri:</span>
+                <div className="grid grid-cols-1 gap-1.5 max-h-[150px] overflow-y-auto pr-1">
+                  {gosterilecekOneriler.map((oneri, idx) => (
                     <button
+                      key={idx}
                       type="button"
-                      className="bg-gray-900 border border-emerald-700 text-emerald-300 hover:bg-gray-800 px-2 py-1 rounded font-mono font-bold"
-                      onClick={() => setFormData(prev => ({ ...prev, tel: sonTelOnerisi }))}
-                      title={`Tıkla ve Telefonu Doldur: ${sonTelOnerisi}`}
+                      className="w-full bg-gray-900/80 hover:bg-gray-900 border border-emerald-800/40 hover:border-emerald-500 p-2 rounded text-left transition flex items-center justify-between gap-2 group"
+                      onClick={() => setFormData(prev => ({
+                        ...prev,
+                        tel: oneri.tel,
+                        firma: oneri.firma,
+                        kisi: oneri.kisi
+                      }))}
                     >
-                      📞 {sonTelOnerisi}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 flex-1 text-gray-300">
+                        <span className="font-mono text-emerald-400 font-bold shrink-0">📞 {oneri.tel}</span>
+                        {oneri.firma && <span className="font-medium truncate max-w-[130px]">🏢 {oneri.firma}</span>}
+                        {oneri.kisi && <span className="text-gray-400 truncate max-w-[100px]">👤 {oneri.kisi}</span>}
+                      </div>
+                      <span className="text-[10px] bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-medium shrink-0 group-hover:bg-emerald-700 group-hover:text-white transition">
+                        ⚡ Seç
+                      </span>
                     </button>
-                  )}
-                  {sonFirmaOnerisi && (
-                    <button
-                      type="button"
-                      className="bg-gray-900 border border-emerald-700 text-gray-200 hover:bg-gray-800 px-2 py-1 rounded max-w-[150px] truncate"
-                      onClick={() => setFormData(prev => ({ ...prev, firma: sonFirmaOnerisi }))}
-                      title={`Tıkla ve Firmayı Doldur: ${sonFirmaOnerisi}`}
-                    >
-                      🏢 {sonFirmaOnerisi}
-                    </button>
-                  )}
-                  {sonKisiOnerisi && (
-                    <button
-                      type="button"
-                      className="bg-gray-900 border border-emerald-700 text-gray-200 hover:bg-gray-800 px-2 py-1 rounded max-w-[130px] truncate"
-                      onClick={() => setFormData(prev => ({ ...prev, kisi: sonKisiOnerisi }))}
-                      title={`Tıkla ve Kişiyi Doldur: ${sonKisiOnerisi}`}
-                    >
-                      👤 {sonKisiOnerisi}
-                    </button>
-                  )}
-                  {(sonFirmaOnerisi && sonKisiOnerisi && sonTelOnerisi) && (
-                    <button
-                      type="button"
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-1 rounded text-[11px] ml-auto"
-                      onClick={() => setFormData(prev => ({ ...prev, tel: sonTelOnerisi, firma: sonFirmaOnerisi, kisi: sonKisiOnerisi }))}
-                    >
-                      ⚡ Hepsini Doldur
-                    </button>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
@@ -536,7 +509,7 @@ const kayıtSil = async (id) => {
                 className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-emerald-400 hover:file:bg-gray-600 cursor-pointer"
                 disabled={uploading}
               />
-              {uploading && <p className="text-xs text-amber-400 mt-1 animate-pulse">Dosyalar işleniyor ve küçültülüyor...</p>}
+              {uploading && <p className="text-xs text-amber-400 mt-1 animate-pulse">Dosyalar işleniyor...</p>}
 
               {formData.dosyalar.length > 0 && (
                 <div className="mt-2 p-2 bg-gray-900 rounded border border-gray-700 space-y-1.5 max-h-[160px] overflow-y-auto">
