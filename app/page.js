@@ -54,12 +54,13 @@ export default function AsistanCRM() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [searchTel, editingId, formData.firma, formData.kisi]);
 
-  // Hibrit Arama Fonksiyonu
+  // Hibrit Arama Fonksiyonu: Telefon, Firma veya Kişi Adına Göre Arama + Silinmemiş Kayıtları Filtreleme
   const araMusteri = async (metin) => {
     setLoading(true);
     const aranacakMetin = metin.trim();
 
-    let query = supabase.from('musteriler').select('*');
+    // Sadece is_deleted alanı false olan (silinmemiş) kayıtları filtrele
+    let query = supabase.from('musteriler').select('*').eq('is_deleted', false);
 
     if (/^\d+$/.test(aranacakMetin)) {
       query = query.ilike('tel', `%${aranacakMetin}%`);
@@ -247,18 +248,20 @@ export default function AsistanCRM() {
     });
   };
 
-  const kayıtSil = async (id) => {
-    if (!confirm("Bu çağrı kaydını kalıcı olarak silmek istediğinize emin misiniz?")) return;
+const kayıtSil = async (id) => {
+    if (!confirm("Bu çağrı kaydını silmek istediğinize emin misiniz? (İstediğinizde yöneticiniz tarafından geri getirilebilir)")) return;
+    
+    // .delete() yerine .update() kullanarak veriyi korumaya alıyoruz
     const { error } = await supabase
       .from('musteriler')
-      .delete()
+      .update({ is_deleted: true }) 
       .eq('id', id);
 
     if (!error) {
-      alert("Kayıt silindi.");
-      araMusteri(searchTel);
+      alert("Kayıt başarıyla silindi (Arşive kaldırıldı).");
+      araMusteri(searchTel); // Listeyi yenile
     } else {
-      alert("Silme hatası: " + error.message);
+      alert("Silme işlemi sırasında hata oluştu: " + error.message);
     }
   };
 
