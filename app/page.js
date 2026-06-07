@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import Tesseract from 'tesseract.js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -12,6 +13,12 @@ export default function AsistanCRM() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Kamera ve OCR Stateleri
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const [formData, setFormData] = useState({
     tel: '', firma: '', kisi: '', uygulama: 'Gastropos', aciklama: '', dosyalar: []
@@ -47,14 +54,14 @@ export default function AsistanCRM() {
           }
         }
       } catch (err) {
-        console.log("Pano okuma izni alınamadı veya desteklenmiyor.");
+        console.log("Pano okuma izni alınamadı.");
       }
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [searchTel, editingId, formData.firma, formData.kisi]);
 
-  // Hibrit Arama Fonksiyonu: Telefon, Firma veya Kişi Adına Göre Arama + Silinmemiş Kayıtları Filtreleme
+  // Hibrit Arama Fonksiyonu
   const araMusteri = async (metin) => {
     setLoading(true);
     const aranacakMetin = metin.trim();
@@ -75,6 +82,77 @@ export default function AsistanCRM() {
       setResults(data);
     }
     setLoading(false);
+  };
+
+  // iOS ve Android Uyumlu Kamera Açma
+  const kamerayiAc = async () => {
+    setIsCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      alert("Kamera izni alınamadı veya cihazda kamera bulunamadı.");
+      setIsCameraOpen(false);
+    }
+  };
+
+  // Kamerayı Kapatma
+  const kamerayiKapat = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject;
+      const tracks = stream.getTracks();
+      tracks.forEach(track => track.stop());
+    }
+    setIsCameraOpen(false);
+  };
+
+  // Butonla Yakalama ve Esnek Telefon No Süzme İşlemi (OCR)
+  const fotografiCekVeOku = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    setOcrLoading(true);
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    // Video karesini yüksek kalitede canvas'a aktar
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    try {
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      
+      // Tesseract ile metin çözme
+      const { data: { text } } = await Tesseract.recognize(dataUrl, 'eng');
+
+      // Harf, boşluk ve sembolleri temizle, sadece saf rakamlar kalsın
+      const temizRakamlar = text.replace(/\D/g, '');
+
+      // Akıllı Telefon Yakalama Motoru (05xx..., 905xx... veya direkt 5xx... kalıplarını bulur)
+      const telefonBulucu = temizRakamlar.match(/(95\d{10}|905\d{9}|05\d{9}|5\d{9})/);
+
+      if (telefonBulucu) {
+        const yakalananNumara = telefonBulucu[0];
+        
+        // Numarayı doğrudan arama çubuğuna ve form alanına gönderiyoruz
+        setSearchTel(yakalananNumara);
+        setFormData(prev => ({ ...prev, tel: yakalananNumara }));
+        
+        // İşlem başarılı, kamerayı kapatıp otomatik aramayı başlatıyoruz
+        kamerayiKapat();
+      } else {
+        alert(`Uygun formatta bir telefon numarası seçilemedi.\nOkunan Ham Metin: ${text.trim()}`);
+      }
+    } catch (error) {
+      alert("Okuma hatası oluştu: " + error.message);
+    } finally {
+      setOcrLoading(false);
+    }
   };
 
   // Görsel Sıkıştırma Motoru
@@ -274,7 +352,7 @@ export default function AsistanCRM() {
     return '📁';
   };
 
-  // VERİ SETİ MOTORU: Arama sonuçlarından tüm benzersiz kombinasyonları ayıkla
+  // VERİ SETİ MOTORU
   const benzersizOneriler = [];
   const gorulenKombinasyonlar = new Set();
 
@@ -283,7 +361,6 @@ export default function AsistanCRM() {
     const firma = item.firma?.trim() || '';
     const kisi = item.kisi?.trim() || '';
     
-    // Kombinasyonu benzersiz bir string anahtar haline getiriyoruz
     const key = `${tel}-${firma}-${kisi}`;
     
     if (!gorulenKombinasyonlar.has(key) && (tel || firma || kisi)) {
@@ -292,7 +369,6 @@ export default function AsistanCRM() {
     }
   });
 
-  // Arayüzü çok boğmamak için en güncel 4 farklı veri setini gösterelim
   const gosterilecekOneriler = benzersizOneriler.slice(0, 4);
 
   return (
@@ -311,25 +387,64 @@ export default function AsistanCRM() {
         <div className="lg:col-span-7 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
           <h2 className="text-lg font-semibold mb-4 text-gray-200">🔍 Akıllı Arama Çubuğu</h2>
 
-          <div className="relative">
-            <input
-              type="text"
-              autoFocus
-              placeholder="Numara, firma adı veya kişi yazın..."
-              className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 pr-12 text-xl font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-500"
-              value={searchTel}
-              onChange={(e) => setSearchTel(e.target.value)}
-            />
-            {searchTel && (
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Numara, firma adı veya kişi yazın..."
+                className="w-full bg-gray-900 border border-gray-600 rounded-lg p-3 pr-12 text-xl font-mono text-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-gray-500"
+                value={searchTel}
+                onChange={(e) => setSearchTel(e.target.value)}
+              />
+              {searchTel && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchTel(''); setResults([]); }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white font-bold text-lg"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            
+            <button
+              type="button"
+              onClick={isCameraOpen ? kamerayiKapat : kamerayiAc}
+              className={`px-4 rounded-lg font-medium text-sm transition flex items-center gap-1 shrink-0 ${isCameraOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
+            >
+              {isCameraOpen ? '✕ Kapat' : '📷 Kameradan Oku'}
+            </button>
+          </div>
+
+          {/* KAMERA ALANI */}
+          {isCameraOpen && (
+            <div className="mt-4 bg-gray-950 p-4 rounded-xl border border-gray-700 flex flex-col items-center">
+              <div className="relative w-full max-w-md aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-12 border-2 border-dashed border-emerald-400 rounded pointer-events-none flex items-center justify-center">
+                  <span className="text-[10px] bg-gray-900/90 px-2 text-emerald-400 font-mono tracking-wider">NUMARAYI BURAYA HIZALAYIN</span>
+                </div>
+              </div>
+              
+              <canvas ref={canvasRef} className="hidden" />
+
               <button
                 type="button"
-                onClick={() => { setSearchTel(''); setResults([]); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white font-bold text-lg"
+                disabled={ocrLoading}
+                onClick={fotografiCekVeOku}
+                className="mt-4 w-full max-w-md bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 text-gray-900 font-bold p-3 rounded-lg transition text-center shadow font-sans"
               >
-                ✕
+                {ocrLoading ? '⚡ Numara Süzülüyor...' : '🎯 Numarayı Yakala ve Ara'}
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mt-6 space-y-4">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Sonuçlar / Çağrı Geçmişi ({results.length})</h3>
@@ -412,7 +527,7 @@ export default function AsistanCRM() {
           </div>
         </div>
 
-        {/* SAĞ PANEL: DİNAMİK VERİ SETLİ FORM */}
+        {/* SAĞ PANEL: FORM */}
         <div className="lg:col-span-5 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg h-fit">
           <h2 className="text-lg font-semibold mb-4 text-gray-200">
             {editingId ? "📝 Kaydı Düzenle" : "📞 Yeni Çağrı / Talep Logla"}
@@ -501,7 +616,7 @@ export default function AsistanCRM() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Dosya / Ekran Videosu / Zip / Log Ekle</label>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Dosya Ekle</label>
               <input
                 type="file"
                 multiple
