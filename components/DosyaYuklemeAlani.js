@@ -80,7 +80,7 @@ export default function DosyaYuklemeAlani({
                                     </span>
                                     <span className="truncate text-gray-300 font-mono text-[11px] group-hover/item:text-emerald-400 transition" title={url}>
                                         {isYoutube
-                                            ? `🎬 YouTube: ${url.split('/').pop().substring(0, 15)}...`
+                                            ? `🎬 YouTube: ${url.includes('v=') ? url.split('v=')[1].substring(0, 10) : url.split('/').pop().substring(0, 10)}...`
                                             : dosyaAdiniAyıkla(url)
                                         }
                                     </span>
