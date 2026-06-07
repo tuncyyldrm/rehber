@@ -410,7 +410,7 @@ export default function AsistanCRM() {
       <header className="max-w-7xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-emerald-400">Reh-ber <span className="text-sm text-gray-400 mt-1">Çağrı Asistanı & Hızlı Sorgu.</span></h1>
-          
+
         </div>
         {loading && <span className="text-sm text-amber-400 animate-pulse">⚡ Aranıyor...</span>}
       </header>
@@ -504,7 +504,7 @@ export default function AsistanCRM() {
                         </p>
 
                         <a href={`tel:${item.tel}`} className="inline-flex items-center text-xs text-emerald-400 hover:underline mt-2 font-mono bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800 w-auto">
-                          📞 {item.tel} (Geri Ara)
+                          📞 {item.tel} (Ara)
                         </a>
                       </div>
 
@@ -528,41 +528,36 @@ export default function AsistanCRM() {
                         {item.aciklama}
                       </p>
                     )}
-                    {/* Dosyalar Alanı (Modern ve Temiz) */}
+                    {/* Dosyalar Alanı - Mobilde de görünürlük artırıldı */}
                     {item.dosyalar && item.dosyalar.length > 0 && (
                       <div className="mt-4 border-t border-gray-800 pt-3">
-                        <span className="text-xs text-gray-500 block mb-2">Ekteki Dosyalar ({item.dosyalar.length}):</span>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Ekteki Dosyalar ({item.dosyalar.length})</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {item.dosyalar.map((url, i) => {
                             const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
                             const dosyaAdi = dosyaAdiniAyıkla(url);
 
                             return (
-                              <div key={i} className="group relative bg-gray-800 p-2 rounded-lg border border-gray-700 transition-all hover:border-emerald-500/50">
-
-                                {/* Tıklanabilir Alan - Tüm kutuyu kapsar */}
+                              <div key={i} className="relative bg-gray-950 p-1.5 rounded-lg border border-gray-800 hover:border-emerald-700 transition-colors group">
                                 <button
                                   type="button"
                                   onClick={() => setActiveModalUrl(url)}
-                                  className="w-full h-[80px] bg-gray-950 rounded overflow-hidden flex items-center justify-center text-2xl transition-transform group-hover:scale-[1.02] cursor-pointer border border-gray-700/50"
+                                  className="w-full h-[40px] flex items-center justify-center text-xl overflow-hidden rounded bg-gray-900 border border-gray-800"
                                 >
                                   {isImage ? (
                                     <img src={url} alt="Ek" className="w-full h-full object-cover" />
                                   ) : (
-                                    <span className="select-none">{dosyaIkonuVer(url)}</span>
+                                    <span className="opacity-80">{dosyaIkonuVer(url)}</span>
                                   )}
                                 </button>
-
-                                {/* Dosya Adı - Alt kısım */}
-                                <div className="mt-2 text-center">
-                                  <p className="text-[10px] text-gray-400 truncate px-1 group-hover:text-emerald-400 transition-colors" title={dosyaAdi}>
-                                    {dosyaAdi}
-                                  </p>
-                                </div>
-
-                                {/* Hover anında beliren şık bir "Tıkla" ikonu */}
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-600 rounded-full p-1 shadow-lg pointer-events-none">
-                                  <span className="text-[8px] text-white font-bold">🔍</span>
+                                <p className="mt-1.5 text-[9px] text-gray-400 truncate text-center px-1">
+                                  {dosyaAdi}
+                                </p>
+                                {/* Mobilde her zaman görünen minik bir gösterge */}
+                                <div className="absolute top-1 right-1 bg-emerald-900/80 text-white text-[8px] px-1 rounded sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                  🔍
                                 </div>
                               </div>
                             );
@@ -598,35 +593,34 @@ export default function AsistanCRM() {
             </div>
 
             {/* ÇOKLU VERİ SETİ ÖNERİ ALANI */}
-            {!editingId && gosterilecekOneriler.length > 0 && (
-              <div className="bg-emerald-950/40 border border-emerald-800 p-3 rounded-lg text-xs space-y-2">
-                <span className="text-emerald-400 font-semibold block">💡 Geçmiş Kayıtlardan Eşleşen Veri Setleri:</span>
-                <div className="grid grid-cols-1 gap-1.5 max-h-[150px] overflow-y-auto pr-1">
-                  {gosterilecekOneriler.map((oneri, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      className="w-full bg-gray-900/80 hover:bg-gray-900 border border-emerald-800/40 hover:border-emerald-500 p-2 rounded text-left transition flex items-center justify-between gap-2 group"
-                      onClick={() => setFormData(prev => ({
-                        ...prev,
-                        tel: oneri.tel,
-                        firma: oneri.firma,
-                        kisi: oneri.kisi
-                      }))}
-                    >
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 flex-1 text-gray-300">
-                        <span className="font-mono text-emerald-400 font-bold shrink-0">📞 {oneri.tel}</span>
-                        {oneri.firma && <span className="font-medium truncate max-w-[130px]">🏢 {oneri.firma}</span>}
-                        {oneri.kisi && <span className="text-gray-400 truncate max-w-[100px]">👤 {oneri.kisi}</span>}
-                      </div>
-                      <span className="text-[10px] bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-medium shrink-0 group-hover:bg-emerald-700 group-hover:text-white transition">
-                        ⚡ Seç
-                      </span>
-                    </button>
-                  ))}
-                </div>
+{!editingId && gosterilecekOneriler.length > 0 && (
+  <div className="bg-gray-900 border border-gray-700 p-2 rounded-lg text-xs space-y-1">
+    <div className="grid grid-cols-1 gap-1">
+      {gosterilecekOneriler.map((oneri, idx) => {
+        const isSelected = formData.tel === oneri.tel;
+        
+        return (
+          <button
+            key={idx}
+            type="button"
+            className={`w-full p-2 rounded text-left flex items-center justify-between border ${
+              isSelected ? "bg-emerald-900 border-emerald-500" : "bg-gray-800 border-gray-700 hover:border-gray-500"
+            }`}
+            onClick={() => setFormData(prev => ({ ...prev, tel: oneri.tel, firma: oneri.firma, kisi: oneri.kisi }))}
+          >
+            <div className="truncate">
+              <div className="font-semibold text-gray-200 truncate">{oneri.firma || "İsimsiz"}</div>
+              <div className={`font-mono ${isSelected ? "text-emerald-100" : "text-emerald-500"}`}>
+                {oneri.tel} {oneri.kisi && <span className="text-gray-400">/ {oneri.kisi}</span>}
               </div>
-            )}
+            </div>
+            {isSelected && <span className="text-[10px] bg-emerald-500 px-1.5 py-0.5 rounded text-white">Seçili</span>}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+)}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
