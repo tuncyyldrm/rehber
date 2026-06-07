@@ -427,10 +427,10 @@ export default function AsistanCRM() {
 
           {/* KAMERA ALANI */}
           {isCameraOpen && (
-            <div className="mt-4 bg-gray-950 p-4 rounded-xl border border-gray-700 flex flex-col items-center">
+            <div className="mt-2 bg-gray-950 p-2 rounded-xl border border-gray-700 flex flex-col items-center">
               
-              {/* aspect-video yerine aspect-[4/1] ve h-24 gibi sınırlandırmalarla ince bir şerit yaptık */}
-              <div className="relative w-full max-w-md aspect-[4/1] h-18 bg-black rounded-lg overflow-hidden border border-gray-600 shadow-inner">
+              {/* aspect-video yerine aspect-[4/1] ve h-12 gibi sınırlandırmalarla ince bir şerit yaptık */}
+              <div className="relative w-full max-w-md aspect-[4/1] h-10 bg-black rounded-lg overflow-hidden border border-gray-600 shadow-inner">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -443,10 +443,6 @@ export default function AsistanCRM() {
                 <div className="absolute inset-0 border-2 border-emerald-500/30 bg-emerald-500/5 pointer-events-none flex items-center justify-center">
                   {/* Ortadaki kırmızı/yeşil lazer çizgisi efekti */}
                   <div className="w-full h-[1px] bg-emerald-400 opacity-70 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-                  
-                  <span className="absolute bottom-0 right-0 text-[6px] bg-gray-900/80 px-1.5 py-0.5 rounded text-emerald-400 font-mono tracking-wider">
-                    NUMARAYI ÇİZGİYE HIZALAYIN
-                  </span>
                 </div>
               </div>
               
