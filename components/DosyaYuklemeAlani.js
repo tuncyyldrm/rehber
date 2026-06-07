@@ -11,8 +11,9 @@ export default function DosyaYuklemeAlani({
     yuklenenDosyayiKaldir,
     setActiveModalUrl
 }) {
+    // İkon belirleme mantığı
     const getLinkTipi = (url) => {
-        if (!url || typeof url !== 'string') return { icon: '🔗', label: 'Link' };
+        if (!url) return { icon: '🔗', label: 'Link' };
         if (url.includes('youtube.com') || url.includes('youtu.be')) return { icon: '🎬', label: 'YouTube' };
         if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) return { icon: '🖼️', label: 'Görsel' };
         if (url.match(/\.(mp4|webm|mov)$/i)) return { icon: '🎥', label: 'Video' };
@@ -20,14 +21,15 @@ export default function DosyaYuklemeAlani({
         return { icon: '🌐', label: 'Link' };
     };
 
+    // İsim gösterme mantığı
     const renderFileName = (url) => {
         if (!url) return "Dosya";
-        // YouTube kontrolü - dosyaAdiniAyıkla fonksiyonunu baypas ederek hata almasını engeller
         if (url.includes('youtube.com') || url.includes('youtu.be')) return "YouTube Videosu";
         
+        // Hata almayı önlemek için basit bir kontrol
         try {
-            return dosyaAdiniAyıkla(url) || "Dosya";
-        } catch (e) {
+            return dosyaAdiniAyıkla ? dosyaAdiniAyıkla(url) : "Dosya";
+        } catch (err) {
             return "Dosya";
         }
     };
@@ -37,19 +39,9 @@ export default function DosyaYuklemeAlani({
             <div
                 className={`relative border-2 border-dashed rounded-xl p-4 transition-all ${uploading ? 'border-amber-500 bg-amber-500/5' : 'border-gray-800 hover:border-emerald-500 bg-gray-950/50'}`}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { 
-                    e.preventDefault(); 
-                    handleCokluDosyaYukle(e); 
-                }}
+                onDrop={(e) => { e.preventDefault(); handleCokluDosyaYukle(e); }}
             >
-                <input 
-                    type="file" 
-                    multiple 
-                    className="hidden" 
-                    id="fileInput" 
-                    onChange={handleCokluDosyaYukle} 
-                    disabled={uploading} 
-                />
+                <input type="file" multiple className="hidden" id="fileInput" onChange={handleCokluDosyaYukle} disabled={uploading} />
                 <label htmlFor="fileInput" className="cursor-pointer flex flex-col items-center gap-1">
                     <span className="text-2xl">{uploading ? '⏳' : '📁'}</span>
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
@@ -59,24 +51,9 @@ export default function DosyaYuklemeAlani({
 
                 <input
                     type="text"
-                    placeholder="Link yapıştır ve Enter'a bas..."
+                    placeholder="Link yapıştır..."
                     className="w-full mt-3 bg-black/40 border border-gray-700 rounded-lg p-2 text-center text-xs text-emerald-400 placeholder-gray-600 focus:ring-1 focus:ring-emerald-500 outline-none"
-                    onKeyDown={(e) => {
-                        // Eğer Enter'a basıldıysa manuel olarak handleCokluDosyaYukle'yi tetikle
-                        if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleCokluDosyaYukle(e);
-                        }
-                    }}
-                    onPaste={(e) => {
-                        // Yapıştırılan veriyi işle
-                        const pastedText = e.clipboardData.getData('text');
-                        if (pastedText) {
-                            // handleCokluDosyaYukle fonksiyonunuzun 
-                            // hem event hem string kabul ettiğinden emin olun
-                            handleCokluDosyaYukle(pastedText);
-                        }
-                    }}
+                    onPaste={handleCokluDosyaYukle}
                 />
             </div>
 
@@ -90,6 +67,7 @@ export default function DosyaYuklemeAlani({
                                     type="button"
                                     onClick={(e) => {
                                         e.preventDefault();
+                                        e.stopPropagation();
                                         setActiveModalUrl(url);
                                     }}
                                     className="flex-1 flex items-center gap-2 min-w-0 text-left"
@@ -103,6 +81,7 @@ export default function DosyaYuklemeAlani({
                                     type="button"
                                     onClick={(e) => {
                                         e.preventDefault();
+                                        e.stopPropagation();
                                         yuklenenDosyayiKaldir(index);
                                     }}
                                     className="text-gray-600 hover:text-red-500 px-2 text-[10px] font-bold uppercase shrink-0"
