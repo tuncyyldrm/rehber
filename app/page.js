@@ -136,14 +136,22 @@ export default function AsistanCRM() {
       // Akıllı Telefon Yakalama Motoru (05xx..., 905xx... veya direkt 5xx... kalıplarını bulur)
       const telefonBulucu = temizRakamlar.match(/(95\d{10}|905\d{9}|05\d{9}|5\d{9})/);
 
+      // Eski regex yerine gelen akıllı temizleme ve sadeleştirme motoru:
       if (telefonBulucu) {
-        const yakalananNumara = telefonBulucu[0];
+        let yakalananNumara = telefonBulucu[0];
         
-        // Numarayı doğrudan arama çubuğuna ve form alanına gönderiyoruz
+        // Eğer numara 905 ile başlıyorsa (12 haneliyse), başındaki 90'ı atıp 05 veya direkt 5 yapıyoruz
+        if (yakalananNumara.startsWith('905') && yakalananNumara.length === 12) {
+          yakalananNumara = '0' + yakalananNumara.slice(2); // 90531... -> 0531... yapar
+        }
+        // Eğer numara sadece 95 ile başlıyorsa (parazitli okuma veya +95 kalıntısı - 11 haneliyse)
+        else if (yakalananNumara.startsWith('95') && yakalananNumara.length === 11) {
+          yakalananNumara = '0' + yakalananNumara.slice(1); // 9531... -> 0531... yapar
+        }
+
+        // Arama çubuğuna ve forma tertemiz 11 haneli (05xx) formatı basıyoruz
         setSearchTel(yakalananNumara);
         setFormData(prev => ({ ...prev, tel: yakalananNumara }));
-        
-        // İşlem başarılı, kamerayı kapatıp otomatik aramayı başlatıyoruz
         kamerayiKapat();
       } else {
         alert(`Uygun formatta bir telefon numarası seçilemedi.\nOkunan Ham Metin: ${text.trim()}`);
