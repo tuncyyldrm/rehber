@@ -58,7 +58,7 @@ const handleYakala = () => {
     // 4/1 oranında bir alanımız var, bu yüzden dikeyde videonun tam ortasından 
     // yaklaşık %20'lik bir şerit keseceğiz.
     const cropWidth = video.videoWidth;
-    const cropHeight = video.videoHeight * 0.25; // Sadece orta %25'lik dikey alanı al
+    const cropHeight = video.videoHeight * 0.15; // Sadece orta %15'lik dikey alanı al
     const yOffset = (video.videoHeight - cropHeight) / 2; // Tam ortadan başlat
 
     cropCanvas.width = cropWidth;
@@ -81,7 +81,7 @@ const handleYakala = () => {
       onCapture(dataUrl);
     }
   };
-  
+
   if (!isCameraOpen) return null;
 
   return (
