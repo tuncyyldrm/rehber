@@ -421,23 +421,32 @@ export default function AsistanCRM() {
               onClick={isCameraOpen ? kamerayiKapat : kamerayiAc}
               className={`px-4 rounded-lg font-medium text-sm transition flex items-center gap-1 shrink-0 ${isCameraOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}`}
             >
-              {isCameraOpen ? '✕ Kapat' : '📷 Kameradan Oku'}
+              {isCameraOpen ? '✖' : '⛶'}
             </button>
           </div>
 
           {/* KAMERA ALANI */}
           {isCameraOpen && (
             <div className="mt-4 bg-gray-950 p-4 rounded-xl border border-gray-700 flex flex-col items-center">
-              <div className="relative w-full max-w-md aspect-video bg-black rounded-lg overflow-hidden border border-gray-600">
+              
+              {/* aspect-video yerine aspect-[4/1] ve h-24 gibi sınırlandırmalarla ince bir şerit yaptık */}
+              <div className="relative w-full max-w-md aspect-[4/1] h-18 bg-black rounded-lg overflow-hidden border border-gray-600 shadow-inner">
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-center" 
                 />
-                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-12 border-2 border-dashed border-emerald-400 rounded pointer-events-none flex items-center justify-center">
-                  <span className="text-[10px] bg-gray-900/90 px-2 text-emerald-400 font-mono tracking-wider">NUMARAYI BURAYA HIZALAYIN</span>
+                
+                {/* İnce açılı yeni tarama hedef çizgisi */}
+                <div className="absolute inset-0 border-2 border-emerald-500/30 bg-emerald-500/5 pointer-events-none flex items-center justify-center">
+                  {/* Ortadaki kırmızı/yeşil lazer çizgisi efekti */}
+                  <div className="w-full h-[1px] bg-emerald-400 opacity-70 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+                  
+                  <span className="absolute bottom-0 right-0 text-[6px] bg-gray-900/80 px-1.5 py-0.5 rounded text-emerald-400 font-mono tracking-wider">
+                    NUMARAYI ÇİZGİYE HIZALAYIN
+                  </span>
                 </div>
               </div>
               
@@ -447,9 +456,9 @@ export default function AsistanCRM() {
                 type="button"
                 disabled={ocrLoading}
                 onClick={fotografiCekVeOku}
-                className="mt-4 w-full max-w-md bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 text-gray-900 font-bold p-3 rounded-lg transition text-center shadow font-sans"
+                className="mt-2 w-full max-w-md bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 text-gray-900 font-bold p-2 rounded-lg transition text-center shadow font-sans uppercase tracking-wide text-sm"
               >
-                {ocrLoading ? '⚡ Numara Süzülüyor...' : '🎯 Numarayı Yakala ve Ara'}
+                {ocrLoading ? '⚡ Numara Süzülüyor...' : 'Yakala ve Ara'}
               </button>
             </div>
           )}
