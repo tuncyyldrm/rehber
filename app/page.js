@@ -1,11 +1,13 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Tesseract from 'tesseract.js';
 // En üste import'ları ekle abi
-import DosyaYuklemeAlani from '@/components/DosyaYuklemeAlani';
+
 import MedyaOnizlemeModal from '@/components/MedyaOnizlemeModal';
 import KameraTaramaAlani from '@/components/KameraTaramaAlani';
+import CagriKarti from '@/components/CagriKarti';
+import CagriFormu from '@/components/CagriFormu';
 
 // 1. Fonksiyon dışında sadece çevre değişkenleri ve Supabase client tanımlanır:
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,18 +15,16 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function AsistanCRM() {
-  // Tam ekran dosya/video önizleme state'i (Artık doğru yerde!)
+  // 1. TÜM STATE TANIMLAMALARINI BURAYA KOY (Sıralama çok önemli!)
   const [activeModalUrl, setActiveModalUrl] = useState(null);
   const [searchTel, setSearchTel] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
-
-  // Kamera ve OCR Stateleri (page.js içinde kalacaklar)
+  const [genisletilmisId, setGenisletilmisId] = useState(null); // <--- BURADA TANIMLI OLMALI
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
-
   const [formData, setFormData] = useState({
     tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: []
   });
@@ -40,7 +40,7 @@ export default function AsistanCRM() {
       } else {
         setResults([]);
       }
-    }, 300);
+    }, 100);
     return () => clearTimeout(delayDebounceFn);
   }, [searchTel]);
 
@@ -66,12 +66,19 @@ export default function AsistanCRM() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [searchTel, editingId, formData.firma, formData.kisi]);
 
-  // Hibrit Arama Fonksiyonu
-  const araMusteri = async (metin) => {
+  const araMusteri = useCallback(async (metin) => {
+    if (!metin || metin.trim().length < 3) {
+      setResults([]);
+      return;
+    }
+
     setLoading(true);
     const aranacakMetin = metin.trim();
 
-    let query = supabase.from('musteriler').select('*').eq('is_deleted', false);
+    let query = supabase
+      .from('musteriler')
+      .select('id, tel, firma, kisi, uygulama, aciklama, dosyalar, created_at') // * yerine sadece ihtiyacın olan alanları çek
+      .eq('is_deleted', false);
 
     if (/^\d+$/.test(aranacakMetin)) {
       query = query.ilike('tel', `%${aranacakMetin}%`);
@@ -83,11 +90,13 @@ export default function AsistanCRM() {
       .order('created_at', { ascending: false })
       .limit(20);
 
-    if (!error && data) {
-      setResults(data);
+    if (error) {
+      console.error("Arama hatası:", error);
+    } else {
+      setResults(data || []);
     }
     setLoading(false);
-  };
+  }, []); // Bağımlılık dizisi boş olabilir, çünkü supabase client dışarıda tanımlı
 
   // SADECE State'i yönetiyoruz, donanımı (kamera) yönetmiyoruz!
   const kamerayiAc = () => {
@@ -310,7 +319,9 @@ export default function AsistanCRM() {
     }
   };
 
-  const duzenleModunuAc = (item) => {
+  const formRef = useRef(null);
+  const duzenleModunuAc = useCallback((item) => {
+    // 1. Verileri doldur
     setEditingId(item.id);
     setFormData({
       tel: item.tel,
@@ -320,23 +331,31 @@ export default function AsistanCRM() {
       aciklama: item.aciklama || '',
       dosyalar: item.dosyalar || []
     });
-  };
 
-  const kayıtSil = async (id) => {
-    if (!confirm("Bu çağrı kaydını silmek istediğinize emin misiniz?")) return;
+    // 2. Formun başına yumuşak geçiş
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
 
+    // Bağımlılık dizisi boş kalabilir çünkü set fonksiyonları ve ref değişmez.
+  }, []);
+
+  const kayıtSil = useCallback(async (id) => {
+    // Kullanıcıyı uyar
+    if (!confirm("Bu çağrı kaydını arşive kaldırmak istediğinize emin misiniz?")) return;
+
+    // Sadece 'is_deleted' bayrağını true yapıyoruz.
+    // Storage'dan dosya silmiyoruz! Böylece ileride geri alınabilir.
     const { error } = await supabase
       .from('musteriler')
       .update({ is_deleted: true })
       .eq('id', id);
 
     if (!error) {
-      alert("Kayıt başarıyla arşive kaldırıldı.");
+      alert("Kayıt başarıyla arşive kaldırıldı. (Dosyalar güvende)");
       araMusteri(searchTel);
     } else {
-      alert("Silme işlemi sırasında hata oluştu: " + error.message);
+      alert("İşlem sırasında hata oluştu: " + error.message);
     }
-  };
+  }, [searchTel]);
 
   const sablonEkle = (metin) => {
     setFormData(prev => ({
@@ -386,24 +405,45 @@ export default function AsistanCRM() {
     return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : url;
   };
 
-  // VERİ SETİ MOTORU
-  const benzersizOneriler = [];
-  const gorulenKombinasyonlar = new Set();
+  // Eğer tek bir kartın açılmasını istiyorsan bu yeterli:
+  const memoizedCards = useMemo(() => results.map((item) => (
+    <CagriKarti
+      key={item.id}
+      item={item}
+      genisletilmisId={genisletilmisId}
+      setGenisletilmisId={setGenisletilmisId}
+      duzenleModunuAc={duzenleModunuAc}
+      kayıtSil={kayıtSil}
+      setActiveModalUrl={setActiveModalUrl}
+      dosyaAdiniAyıkla={dosyaAdiniAyıkla}
+      dosyaIkonuVer={dosyaIkonuVer}
+    />
+  )), [results, genisletilmisId]);
 
-  results.forEach(item => {
-    const tel = item.tel?.trim() || '';
-    const firma = item.firma?.trim() || '';
-    const kisi = item.kisi?.trim() || '';
+  // useEffect içine eklenebilecek bir örnek
+useEffect(() => {
+  const channel = supabase
+    .channel('realtime-musteriler')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'musteriler' }, payload => {
+      
+      if (payload.eventType === 'INSERT') {
+        setResults(prev => [payload.new, ...prev]);
+      } 
+      else if (payload.eventType === 'UPDATE') {
+        // Düzenlenen kaydı listede bul ve güncelle
+        setResults(prev => prev.map(item => 
+          item.id === payload.new.id ? payload.new : item
+        ));
+      } 
+      else if (payload.eventType === 'DELETE') {
+        // Silineni listeden kaldır
+        setResults(prev => prev.filter(item => item.id !== payload.old.id));
+      }
+    })
+    .subscribe();
 
-    const key = `${tel}-${firma}-${kisi}`;
-
-    if (!gorulenKombinasyonlar.has(key) && (tel || firma || kisi)) {
-      gorulenKombinasyonlar.add(key);
-      benzersizOneriler.push({ tel, firma, kisi });
-    }
-  });
-
-  const gosterilecekOneriler = benzersizOneriler.slice(0, 4);
+  return () => supabase.removeChannel(channel);
+}, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
@@ -466,232 +506,27 @@ export default function AsistanCRM() {
               </div>
             ) : (
               <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
-                {results.map((item) => (
-                  // En dış kutuda "w-full overflow-hidden" kartın dışarı taşmasını kesin olarak engeller
-                  <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow w-full overflow-hidden">
-
-                    {/* İçerik ve butonları taşıyan ana esnek kutu. Mobilde alt alta, sm ekranda yan yana */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-3 w-full min-w-0">
-
-                      {/* Sol Taraf: Metinlerin olduğu alan. "w-full min-w-0" truncate'in çalışması için zorunludur */}
-                      <div className="w-full min-w-0 flex-1">
-                        <span className="text-xs text-gray-500 font-mono">
-                          {new Date(item.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-
-                        {/* Firma Başlığı Kapsayıcısı */}
-                        <div className="group relative w-full min-w-0 mt-1">
-                          <h4
-                            onClick={(e) => {
-                              // Tıklayınca kesme özelliğini aç/kapat yapar
-                              e.currentTarget.classList.toggle('whitespace-normal');
-                              e.currentTarget.classList.toggle('truncate');
-                            }}
-                            className="text-lg font-bold text-white uppercase truncate cursor-pointer transition-all duration-200 select-none hover:text-emerald-400 block w-full"
-                            title="Tam ismi görmek için tıklayın"
-                          >
-                            {item.firma || "Bilinmeyen Firma"}
-                          </h4>
-
-                          {/* MASAÜSTÜ İÇİN HOVER TAM METİN BALONCUĞU (TOOLTIP) */}
-                          <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 max-w-xs sm:max-w-md bg-gray-950 text-gray-200 text-xs p-2 rounded-md shadow-xl border border-gray-700 font-sans font-normal normal-case pointer-events-none whitespace-normal">
-                            {item.firma || "Bilinmeyen Firma"}
-                          </div>
-                        </div>
-
-                        <p className="text-sm text-gray-300 mt-1 truncate">
-                          Yetkili: <span className="font-semibold">{item.kisi || "Belirtilmemiş"}</span>
-                        </p>
-
-                        <a href={`tel:${item.tel}`} className="inline-flex items-center text-xs text-emerald-400 hover:underline mt-2 font-mono bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800 w-auto">
-                          📞 {item.tel} (Ara)
-                        </a>
-                      </div>
-
-                      {/* Sağ Taraf: Uygulama Etiketi ve Düzenle/Sil Butonları */}
-                      <div className="flex sm:flex-col items-end gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start border-t border-gray-800 sm:border-0 pt-2 sm:pt-0">
-                        <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'}`}>
-                          {item.uygulama || "Diğer"}
-                        </span>
-
-                        <div className="flex gap-1.5 mt-auto sm:mt-1">
-                          <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition shrink-0">📝 Düzenle</button>
-                          <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition shrink-0">🗑️ Sil</button>
-                        </div>
-                      </div>
-
-                    </div>
-
-                    {/* Açıklama Alanı */}
-                    {item.aciklama && item.aciklama.trim() && (
-                      <p className="mt-3 text-sm bg-gray-800 p-2 rounded text-gray-300 border border-gray-700 whitespace-pre-line overflow-hidden text-ellipsis">
-                        {item.aciklama}
-                      </p>
-                    )}
-                    {/* Dosyalar Alanı - Mobilde de görünürlük artırıldı */}
-                    {item.dosyalar && item.dosyalar.length > 0 && (
-                      <div className="mt-4 border-t border-gray-800 pt-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Ekteki Dosyalar ({item.dosyalar.length})</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {item.dosyalar.map((url, i) => {
-                            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
-                            const dosyaAdi = dosyaAdiniAyıkla(url);
-
-                            return (
-                              <div key={i} className="relative bg-gray-950 p-1.5 rounded-lg border border-gray-800 hover:border-emerald-700 transition-colors group">
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveModalUrl(url)}
-                                  className="w-full h-[40px] flex items-center justify-center text-xl overflow-hidden rounded bg-gray-900 border border-gray-800"
-                                >
-                                  {isImage ? (
-                                    <img src={url} alt="Ek" className="w-full h-full object-cover" />
-                                  ) : (
-                                    <span className="opacity-80">{dosyaIkonuVer(url)}</span>
-                                  )}
-                                </button>
-                                <p className="mt-1.5 text-[9px] text-gray-400 truncate text-center px-1">
-                                  {dosyaAdi}
-                                </p>
-                                {/* Mobilde her zaman görünen minik bir gösterge */}
-                                <div className="absolute top-1 right-1 bg-emerald-900/80 text-white text-[8px] px-1 rounded sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                  🔍
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                  </div>
-                ))}
+                {memoizedCards}
               </div>
             )}
           </div>
         </div>
-
-        {/* SAĞ PANEL: FORM */}
-        <div className="lg:col-span-5 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg h-fit">
-          <h2 className="text-md font-semibold mb-4 text-gray-200">
-            {editingId ? "📝 Kaydı Düzenle" : "📞 Yeni Çağrı / Talep Logla"}
-            {editingId && <button onClick={() => { setEditingId(null); setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: [] }); }} className="ml-2 text-xs text-red-400 underline">İptal</button>}
-          </h2>
-
-          <form onSubmit={handleKayıtSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Telefon *</label>
-              <input
-                type="text"
-                required
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white font-mono focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                value={formData.tel}
-                onChange={(e) => setFormData({ ...formData, tel: e.target.value })}
-              />
-            </div>
-
-            {/* ÇOKLU VERİ SETİ ÖNERİ ALANI */}
-{!editingId && gosterilecekOneriler.length > 0 && (
-  <div className="bg-gray-900 border border-gray-700 p-2 rounded-lg text-xs space-y-1">
-    <div className="grid grid-cols-1 gap-1">
-      {gosterilecekOneriler.map((oneri, idx) => {
-        const isSelected = formData.tel === oneri.tel;
-        
-        return (
-          <button
-            key={idx}
-            type="button"
-            className={`w-full p-2 rounded text-left flex items-center justify-between border ${
-              isSelected ? "bg-emerald-900 border-emerald-500" : "bg-gray-800 border-gray-700 hover:border-gray-500"
-            }`}
-            onClick={() => setFormData(prev => ({ ...prev, tel: oneri.tel, firma: oneri.firma, kisi: oneri.kisi }))}
-          >
-            <div className="truncate">
-              <div className="font-semibold text-gray-200 truncate">{oneri.firma || "İsimsiz"}</div>
-              <div className={`font-mono ${isSelected ? "text-emerald-100" : "text-emerald-500"}`}>
-                {oneri.tel} {oneri.kisi && <span className="text-gray-400">/ {oneri.kisi}</span>}
-              </div>
-            </div>
-            {isSelected && <span className="text-[10px] bg-emerald-500 px-1.5 py-0.5 rounded text-white">Seçili</span>}
-          </button>
-        );
-      })}
-    </div>
-  </div>
-)}
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Firma Adı *</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  value={formData.firma}
-                  onChange={(e) => setFormData({ ...formData, firma: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Kişi *</label>
-                <input
-                  type="text"
-                  required
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  value={formData.kisi}
-                  onChange={(e) => setFormData({ ...formData, kisi: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Kullandığı Uygulama / Cihaz</label>
-              <select
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                value={formData.uygulama}
-                onChange={(e) => setFormData({ ...formData, uygulama: e.target.value })}
-              >
-                <option value="Gastropos">Gastropos</option>
-                <option value="M320 Medusa">M320 Medusa</option>
-                <option value="M320">M320</option>
-                <option value="Zen2o">Zen2o</option>
-                <option value="Diğer">Diğer</option>
-              </select>
-            </div>
-            <DosyaYuklemeAlani
-              handleCokluDosyaYukle={handleCokluDosyaYukle}
-              uploading={uploading}
-              formData={formData}
-              dosyaIkonuVer={dosyaIkonuVer}
-              dosyaAdiniAyıkla={dosyaAdiniAyıkla}
-              yuklenenDosyayiKaldir={yuklenenDosyayiKaldir}
-              setActiveModalUrl={setActiveModalUrl}
-            />
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Açıklama / Talep Detayı</label>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                <button type="button" onClick={() => sablonEkle("Uzak bağlantı ile sorun çözüldü.")} className="text-[11px] bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-gray-300">⚙️ Çözüldü</button>
-                <button type="button" onClick={() => sablonEkle("Lisans güncellemesi yapıldı.")} className="text-[11px] bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded text-gray-300">🔑 Lisans</button>
-                <button type="button" onClick={() => sablonEkle("Dönüş yapılacak, bekleniyor.")} className="text-[11px] bg-amber-950/40 border border-amber-800 text-amber-300 px-2 py-1 rounded">⏳ Beklemede</button>
-              </div>
-
-              <textarea
-                rows="4"
-                className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white text-sm focus:ring-1 focus:ring-emerald-500 focus:outline-none placeholder-gray-600"
-                placeholder="Müşteri ne talep etti? Hangi sorun çözüldü?"
-                value={formData.aciklama}
-                onChange={(e) => setFormData({ ...formData, aciklama: e.target.value })}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold p-3 rounded-lg transition shadow-md"
-            >
-              {editingId ? "Değişiklikleri Kaydet" : "Çağrıyı Sisteme Kaydet"}
-            </button>
-          </form>
+        {/* SAĞ PANEL: FORM - Tek bir tane olması yeterli */}
+        <div className="lg:col-span-5" ref={formRef}>
+          <CagriFormu
+            formData={formData}
+            setFormData={setFormData}
+            handleKayıtSubmit={handleKayıtSubmit}
+            editingId={editingId}
+            setEditingId={setEditingId}
+            uploading={uploading}
+            handleCokluDosyaYukle={handleCokluDosyaYukle}
+            dosyaIkonuVer={dosyaIkonuVer}
+            dosyaAdiniAyıkla={dosyaAdiniAyıkla}
+            yuklenenDosyayiKaldir={yuklenenDosyayiKaldir}
+            setActiveModalUrl={setActiveModalUrl}
+            sablonEkle={sablonEkle}
+          />
         </div>
       </main>
       {/* Sayfanın en altına (main kapanışının hemen önüne) da pop-up bileşenini bırakıyorsun: */}

@@ -86,12 +86,21 @@ export default function MedyaOnizlemeModal({ activeModalUrl, setActiveModalUrl, 
             className="w-full h-full max-h-[75vh] rounded-lg shadow-2xl bg-black" 
           />
         ) : activeModalUrl.toLowerCase().split('?')[0].endsWith('pdf') ? (
-          <iframe 
-            src={activeModalUrl} 
-            className="w-full h-full max-h-[75vh] bg-white rounded-lg border-0 touch-auto shadow-2xl" 
-            title="PDF Doküman Önizleme" 
-          />
-        ) : ['txt', 'log', 'html', 'htm'].some(ext => activeModalUrl.toLowerCase().split('?')[0].endsWith(ext)) ? (
+  <div className="w-full h-full max-h-[75vh] bg-white rounded-lg overflow-hidden shadow-2xl">
+    <object
+      data={activeModalUrl}
+      type="application/pdf"
+      className="w-full h-full"
+    >
+      {/* Eğer object çalışmazsa Google Viewer'a yönlendir */}
+      <iframe
+        src={`https://docs.google.com/viewer?url=${encodeURIComponent(activeModalUrl)}&embedded=true`}
+        className="w-full h-full border-0"
+        title="PDF Doküman Önizleme"
+      />
+    </object>
+  </div>
+) : ['txt', 'log', 'html', 'htm'].some(ext => activeModalUrl.toLowerCase().split('?')[0].endsWith(ext)) ? (
           <iframe 
             src={activeModalUrl} 
             className="w-full h-full max-h-[75vh] bg-gray-900 text-gray-100 p-3 font-mono border-0 touch-auto rounded-lg" 
