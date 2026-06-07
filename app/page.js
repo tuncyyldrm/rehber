@@ -2,6 +2,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Tesseract from 'tesseract.js';
+// En üste import'ları ekle abi
+import DosyaYuklemeAlani from '@/components/DosyaYuklemeAlani';
+import MedyaOnizlemeModal from '@/components/MedyaOnizlemeModal';
+import KameraTaramaAlani from '@/components/KameraTaramaAlani';
 
 // 1. Fonksiyon dışında sadece çevre değişkenleri ve Supabase client tanımlanır:
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,14 +21,12 @@ export default function AsistanCRM() {
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
-  // Kamera ve OCR Stateleri
+  // Kamera ve OCR Stateleri (page.js içinde kalacaklar)
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
 
   const [formData, setFormData] = useState({
-    tel: '', firma: '', kisi: '', uygulama: 'Gastropos', aciklama: '', dosyalar: []
+    tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: []
   });
 
   // Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
@@ -87,51 +89,23 @@ export default function AsistanCRM() {
     setLoading(false);
   };
 
-  // iOS ve Android Uyumlu Kamera Açma
-  const kamerayiAc = async () => {
+  // SADECE State'i yönetiyoruz, donanımı (kamera) yönetmiyoruz!
+  const kamerayiAc = () => {
     setIsCameraOpen(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      alert("Kamera izni alınamadı veya cihazda kamera bulunamadı.");
-      setIsCameraOpen(false);
-    }
   };
 
-  // Kamerayı Kapatma
+  // SADECE State'i yönetiyoruz
   const kamerayiKapat = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject;
-      const tracks = stream.getTracks();
-      tracks.forEach(track => track.stop());
-    }
     setIsCameraOpen(false);
   };
 
-  // Butonla Yakalama ve Esnek Telefon No Süzme İşlemi (OCR)
-  const fotografiCekVeOku = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  // Dışarıdan yakalanan görseli alan yeni OCR motoru
+  const handleOcrOku = async (base64Gorsel) => {
     setOcrLoading(true);
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-
-    // Video karesini yüksek kalitede canvas'a aktar
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
     try {
-      const dataUrl = canvas.toDataURL('image/jpeg');
-
-      // Tesseract ile metin çözme
-      const { data: { text } } = await Tesseract.recognize(dataUrl, 'eng');
+      // Tesseract ile metin çözme (Görsel bileşenden base64 olarak akıyor)
+      const { data: { text } } = await Tesseract.recognize(base64Gorsel, 'eng');
 
       // Harf, boşluk ve sembolleri temizle, sadece saf rakamlar kalsın
       const temizRakamlar = text.replace(/\D/g, '');
@@ -139,15 +113,14 @@ export default function AsistanCRM() {
       // Akıllı Telefon Yakalama Motoru (05xx..., 905xx... veya direkt 5xx... kalıplarını bulur)
       const telefonBulucu = temizRakamlar.match(/(95\d{10}|905\d{9}|05\d{9}|5\d{9})/);
 
-      // Eski regex yerine gelen akıllı temizleme ve sadeleştirme motoru:
       if (telefonBulucu) {
         let yakalananNumara = telefonBulucu[0];
 
-        // Eğer numara 905 ile başlıyorsa (12 haneliyse), başındaki 90'ı atıp 05 veya direkt 5 yapıyoruz
+        // Eğer numara 905 ile başlıyorsa (12 haneliyse), başındaki 90'ı atıp 05 yapıyoruz
         if (yakalananNumara.startsWith('905') && yakalananNumara.length === 12) {
           yakalananNumara = '0' + yakalananNumara.slice(2); // 90531... -> 0531... yapar
         }
-        // Eğer numara sadece 95 ile başlıyorsa (parazitli okuma veya +95 kalıntısı - 11 haneliyse)
+        // Eğer numara sadece 95 ile başlıyorsa (11 haneliyse)
         else if (yakalananNumara.startsWith('95') && yakalananNumara.length === 11) {
           yakalananNumara = '0' + yakalananNumara.slice(1); // 9531... -> 0531... yapar
         }
@@ -155,6 +128,8 @@ export default function AsistanCRM() {
         // Arama çubuğuna ve forma tertemiz 11 haneli (05xx) formatı basıyoruz
         setSearchTel(yakalananNumara);
         setFormData(prev => ({ ...prev, tel: yakalananNumara }));
+
+        // Kamerayı kapatma fonksiyonunu burada tetikliyoruz
         kamerayiKapat();
       } else {
         alert(`Uygun formatta bir telefon numarası seçilemedi.\nOkunan Ham Metin: ${text.trim()}`);
@@ -211,19 +186,45 @@ export default function AsistanCRM() {
 
   const handleCokluDosyaYukle = async (e) => {
     try {
-      if (!e.target.files || e.target.files.length === 0) return;
-      setUploading(true);
+      // 1. DURUM: BAĞLANTI (PASTE / CTRL+V) SÜZGECİ
+      // Eğer fonksiyon bir yapıştırma olayıyla (onPaste) tetiklendiyse
+      if (e.clipboardData) {
+        const pastedText = e.clipboardData.getData('text');
 
+        // Yapıştırılan metin bir YouTube linki mi?
+        if (pastedText && (pastedText.includes('youtube.com') || pastedText.includes('youtu.be'))) {
+          e.preventDefault(); // Tarayıcının varsayılan metin yapıştırma hareketini durdur
+
+          setFormData(prev => ({
+            ...prev,
+            dosyalar: [...prev.dosyalar, pastedText.trim()]
+          }));
+
+          alert("🎬 YouTube video bağlantısı başarıyla eklendi!");
+          return;
+        }
+      }
+
+      // 2. DURUM: DOSYA SEÇİMİ VEYA EKRAN GÖRÜNTÜSÜ (PASTE BLOB) SÜZGECİ
+      // Input'tan dosya seçildiyse e.target.files, Ctrl+V ile görsel yapıştırıldıysa e.clipboardData.files kullanılır
+      const rawFiles = e.target?.files || e.clipboardData?.files;
+      if (!rawFiles || rawFiles.length === 0) return;
+
+      if (e.clipboardData) e.preventDefault(); // Görsel yapıştırıldıysa input kutusuna parazit metin girmesini engelle
+
+      setUploading(true);
       const yuklenenLinkler = [];
-      const files = Array.from(e.target.files);
+      const files = Array.from(rawFiles);
 
       for (let file of files) {
+        // Görsel Kontrolü (Ekran görüntüleri otomatik olarak 'image/png' formatında gelir)
         const gorselMi = ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'].includes(file.type);
         if (gorselMi) {
           file = await gorseliSikistir(file);
         }
 
-        const temizIsim = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+        // Dosya adı temizleme (Ekran görüntülerinde 'image.png' veya 'clipboard.png' olur)
+        const temizIsim = file.name ? file.name.replace(/[^a-zA-Z0-9.]/g, "_") : `ekran_goruntusu_${Date.now()}.png`;
         const dosyaAdi = `${Date.now()}-${temizIsim}`;
 
         const { data, error } = await supabase.storage
@@ -244,12 +245,12 @@ export default function AsistanCRM() {
         dosyalar: [...prev.dosyalar, ...yuklenenLinkler]
       }));
 
-      alert(`${files.length} dosya işlenerek başarıyla eklendi!`);
+      alert(`${files.length} öge işlenerek başarıyla eklendi!`);
     } catch (error) {
-      alert("Dosya yüklenirken hata oluştu: " + error.message);
+      alert("İşlem yapılırken hata oluştu: " + error.message);
     } finally {
       setUploading(false);
-      e.target.value = "";
+      if (e.target) e.target.value = ""; // Input değerini sıfırla
     }
   };
 
@@ -290,7 +291,7 @@ export default function AsistanCRM() {
         alert("Kayıt başarıyla güncellendi!");
         setEditingId(null);
         araMusteri(searchTel || telefon);
-        setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Gastropos', aciklama: '', dosyalar: [] });
+        setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: [] });
       } else {
         alert("Güncelleme hatası: " + error.message);
       }
@@ -302,7 +303,7 @@ export default function AsistanCRM() {
       if (!error) {
         alert("Çağrı başarıyla kaydedildi!");
         setSearchTel(telefon);
-        setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Gastropos', aciklama: '', dosyalar: [] });
+        setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: [] });
       } else {
         alert("Kayıt hatası: " + error.message);
       }
@@ -315,7 +316,7 @@ export default function AsistanCRM() {
       tel: item.tel,
       firma: item.firma || '',
       kisi: item.kisi || '',
-      uygulama: item.uygulama || 'Gastropos',
+      uygulama: item.uygulama || 'Diğer',
       aciklama: item.aciklama || '',
       dosyalar: item.dosyalar || []
     });
@@ -363,6 +364,28 @@ export default function AsistanCRM() {
     return '📁';
   };
 
+  // YouTube linklerini güvenli embed (gömülü) oynatıcı linkine dönüştürür
+  const youtubeEmbedUrlVer = (url) => {
+    if (!url) return '';
+    let videoId = '';
+
+    // Normal youtube.com/watch?v=VIDEO_ID formatı için
+    if (url.includes('youtube.com/watch')) {
+      const urlParams = new URLSearchParams(url.split('?')[1]);
+      videoId = urlParams.get('v');
+    }
+    // Mobil veya kısa youtu.be/VIDEO_ID formatı için
+    else if (url.includes('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    }
+    // embedded format zaten gelmişse
+    else if (url.includes('youtube.com/embed/')) {
+      return url;
+    }
+
+    return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : url;
+  };
+
   // VERİ SETİ MOTORU
   const benzersizOneriler = [];
   const gorulenKombinasyonlar = new Set();
@@ -386,8 +409,8 @@ export default function AsistanCRM() {
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
       <header className="max-w-7xl mx-auto mb-8 border-b border-gray-800 pb-4 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-emerald-400">Reh-ber</h1>
-          <p className="text-sm text-gray-400 mt-1">Çağrı Asistanı & Hızlı Sorgu.</p>
+          <h1 className="text-2xl font-bold text-emerald-400">Reh-ber <span className="text-sm text-gray-400 mt-1">Çağrı Asistanı & Hızlı Sorgu.</span></h1>
+          
         </div>
         {loading && <span className="text-sm text-amber-400 animate-pulse">⚡ Aranıyor...</span>}
       </header>
@@ -396,7 +419,7 @@ export default function AsistanCRM() {
 
         {/* SOL PANEL: ARAMA VE GEÇMİŞ */}
         <div className="lg:col-span-7 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
-          <h2 className="text-lg font-semibold mb-4 text-gray-200">🔍 Akıllı Arama Çubuğu</h2>
+          <h2 className="text-md font-semibold mb-4 text-gray-200">🔍 Akıllı Arama Çubuğu</h2>
 
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -429,39 +452,11 @@ export default function AsistanCRM() {
           </div>
 
           {/* KAMERA ALANI */}
-          {isCameraOpen && (
-            <div className="mt-2 bg-gray-950 p-2 rounded-xl border border-gray-700 flex flex-col items-center">
-
-              {/* aspect-video yerine aspect-[4/1] ve h-12 gibi sınırlandırmalarla ince bir şerit yaptık */}
-              <div className="relative w-full max-w-md aspect-[4/1] h-10 bg-black rounded-lg overflow-hidden border border-gray-600 shadow-inner">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover object-center"
-                />
-
-                {/* İnce açılı yeni tarama hedef çizgisi */}
-                <div className="absolute inset-0 border-2 border-emerald-500/30 bg-emerald-500/5 pointer-events-none flex items-center justify-center">
-                  {/* Ortadaki kırmızı/yeşil lazer çizgisi efekti */}
-                  <div className="w-full h-[1px] bg-emerald-400 opacity-70 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-                </div>
-              </div>
-
-              <canvas ref={canvasRef} className="hidden" />
-
-              <button
-                type="button"
-                disabled={ocrLoading}
-                onClick={fotografiCekVeOku}
-                className="mt-2 w-full max-w-md bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-700 text-gray-900 font-bold p-2 rounded-lg transition text-center shadow font-sans uppercase tracking-wide text-sm"
-              >
-                {ocrLoading ? '⚡ Numara Süzülüyor...' : 'Yakala ve Ara'}
-              </button>
-            </div>
-          )}
-
+          <KameraTaramaAlani
+            isCameraOpen={isCameraOpen}
+            ocrLoading={ocrLoading}
+            onCapture={handleOcrOku} // Canvas'tan üretilen base64 buraya paslanıyor
+          />
           <div className="mt-6 space-y-4">
             <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Sonuçlar / Çağrı Geçmişi ({results.length})</h3>
 
@@ -516,7 +511,7 @@ export default function AsistanCRM() {
                       {/* Sağ Taraf: Uygulama Etiketi ve Düzenle/Sil Butonları */}
                       <div className="flex sm:flex-col items-end gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start border-t border-gray-800 sm:border-0 pt-2 sm:pt-0">
                         <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'}`}>
-                          {item.uygulama || "Gastropos"}
+                          {item.uygulama || "Diğer"}
                         </span>
 
                         <div className="flex gap-1.5 mt-auto sm:mt-1">
@@ -533,47 +528,45 @@ export default function AsistanCRM() {
                         {item.aciklama}
                       </p>
                     )}
-
-                    {/* Dosyalar Alanı (Aynen Korundu) */}
+                    {/* Dosyalar Alanı (Modern ve Temiz) */}
                     {item.dosyalar && item.dosyalar.length > 0 && (
                       <div className="mt-4 border-t border-gray-800 pt-3">
                         <span className="text-xs text-gray-500 block mb-2">Ekteki Dosyalar ({item.dosyalar.length}):</span>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-{item.dosyalar.map((url, i) => {
-  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
-  const dosyaAdi = dosyaAdiniAyıkla(url);
-  return (
-    <div key={i} className="bg-gray-800 p-2 rounded border border-gray-700 flex flex-col justify-between items-center h-[130px] text-center min-w-0">
-      {isImage ? (
-        // Görsele tıklayınca pop-up açar
-        <button 
-          type="button" 
-          onClick={() => setActiveModalUrl(url)} 
-          className="w-full flex justify-center focus:outline-none"
-        >
-          <img src={url} alt="Ek" className="w-full h-[65px] rounded object-cover hover:opacity-80 transition" />
-        </button>
-      ) : (
-        <div className="w-full h-[65px] bg-gray-950 rounded flex items-center justify-center text-xl">
-          {dosyaIkonuVer(url)}
-        </div>
-      )}
-      <div className="w-full mt-1 min-w-0">
-        <p className="text-[10px] text-gray-300 truncate px-1" title={dosyaAdi}>
-          {dosyaAdi}
-        </p>
-        {/* YENİ SEKMEDE AÇMAK YERİNE POPUP AÇAN BUTON */}
-        <button
-          type="button"
-          onClick={() => setActiveModalUrl(url)}
-          className="text-[10px] text-emerald-400 hover:underline block mt-0.5 font-semibold mx-auto focus:outline-none"
-        >
-          🔍 Önizle / İncele
-        </button>
-      </div>
-    </div>
-  );
-})}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {item.dosyalar.map((url, i) => {
+                            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
+                            const dosyaAdi = dosyaAdiniAyıkla(url);
+
+                            return (
+                              <div key={i} className="group relative bg-gray-800 p-2 rounded-lg border border-gray-700 transition-all hover:border-emerald-500/50">
+
+                                {/* Tıklanabilir Alan - Tüm kutuyu kapsar */}
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveModalUrl(url)}
+                                  className="w-full h-[80px] bg-gray-950 rounded overflow-hidden flex items-center justify-center text-2xl transition-transform group-hover:scale-[1.02] cursor-pointer border border-gray-700/50"
+                                >
+                                  {isImage ? (
+                                    <img src={url} alt="Ek" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="select-none">{dosyaIkonuVer(url)}</span>
+                                  )}
+                                </button>
+
+                                {/* Dosya Adı - Alt kısım */}
+                                <div className="mt-2 text-center">
+                                  <p className="text-[10px] text-gray-400 truncate px-1 group-hover:text-emerald-400 transition-colors" title={dosyaAdi}>
+                                    {dosyaAdi}
+                                  </p>
+                                </div>
+
+                                {/* Hover anında beliren şık bir "Tıkla" ikonu */}
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-600 rounded-full p-1 shadow-lg pointer-events-none">
+                                  <span className="text-[8px] text-white font-bold">🔍</span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -587,9 +580,9 @@ export default function AsistanCRM() {
 
         {/* SAĞ PANEL: FORM */}
         <div className="lg:col-span-5 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg h-fit">
-          <h2 className="text-lg font-semibold mb-4 text-gray-200">
+          <h2 className="text-md font-semibold mb-4 text-gray-200">
             {editingId ? "📝 Kaydı Düzenle" : "📞 Yeni Çağrı / Talep Logla"}
-            {editingId && <button onClick={() => { setEditingId(null); setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Gastropos', aciklama: '', dosyalar: [] }); }} className="ml-2 text-xs text-red-400 underline">İptal</button>}
+            {editingId && <button onClick={() => { setEditingId(null); setFormData({ tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: [] }); }} className="ml-2 text-xs text-red-400 underline">İptal</button>}
           </h2>
 
           <form onSubmit={handleKayıtSubmit} className="space-y-4">
@@ -672,35 +665,15 @@ export default function AsistanCRM() {
                 <option value="Diğer">Diğer</option>
               </select>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Dosya Ekle</label>
-              <input
-                type="file"
-                multiple
-                onChange={handleCokluDosyaYukle}
-                className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-gray-700 file:text-emerald-400 hover:file:bg-gray-600 cursor-pointer"
-                disabled={uploading}
-              />
-              {uploading && <p className="text-xs text-amber-400 mt-1 animate-pulse">Dosyalar işleniyor...</p>}
-
-              {formData.dosyalar.length > 0 && (
-                <div className="mt-2 p-2 bg-gray-900 rounded border border-gray-700 space-y-1.5 max-h-[160px] overflow-y-auto">
-                  {formData.dosyalar.map((url, index) => (
-                    <div key={index} className="flex justify-between items-center bg-gray-800 p-1.5 rounded px-2 text-xs">
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
-                        <span>{dosyaIkonuVer(url)}</span>
-                        <span className="truncate text-gray-300 font-mono text-[11px]" title={dosyaAdiniAyıkla(url)}>
-                          {dosyaAdiniAyıkla(url)}
-                        </span>
-                      </div>
-                      <button type="button" onClick={() => yuklenenDosyayiKaldir(index)} className="text-red-400 hover:text-red-300 text-[10px] font-bold shrink-0">✕ Kaldır</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
+            <DosyaYuklemeAlani
+              handleCokluDosyaYukle={handleCokluDosyaYukle}
+              uploading={uploading}
+              formData={formData}
+              dosyaIkonuVer={dosyaIkonuVer}
+              dosyaAdiniAyıkla={dosyaAdiniAyıkla}
+              yuklenenDosyayiKaldir={yuklenenDosyayiKaldir}
+              setActiveModalUrl={setActiveModalUrl}
+            />
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">Açıklama / Talep Detayı</label>
               <div className="flex flex-wrap gap-1.5 mb-2">
@@ -727,98 +700,13 @@ export default function AsistanCRM() {
           </form>
         </div>
       </main>
-{/* ================= TAM EKRAN DOSYA ÖNİZLEME POP-UP (MODAL) ================= */}
-{activeModalUrl && (
-  <div 
-    className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex flex-col justify-between p-4 overscroll-none touch-none animate-fadeIn"
-    onClick={() => {
-      // Kapatırken arka plan kilidini açıyoruz
-      document.body.style.overflow = '';
-      setActiveModalUrl(null);
-    }} 
-    ref={(el) => {
-      // DOM'a yüklendiği an (render olduğunda) arka planı çivi gibi çakar
-      if (el) {
-        document.body.style.overflow = 'hidden';
-      }
-    }}
-  >
-    {/* Üst Bar: Dosya Adı ve Kapat Butonu */}
-    <div className="flex justify-between items-center bg-gray-900/80 p-3 rounded-lg border border-gray-800 backdrop-blur w-full max-w-5xl mx-auto mb-2 shrink-0">
-      <span className="text-xs sm:text-sm font-mono text-gray-300 truncate max-w-[70%]">
-        📄 {dosyaAdiniAyıkla(activeModalUrl)}
-      </span>
-      <div className="flex items-center gap-3">
-        <a 
-          href={activeModalUrl} 
-          download
-          target="_blank" 
-          rel="noreferrer"
-          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition flex items-center gap-1"
-          onClick={(e) => e.stopPropagation()} 
-        >
-          📥 İndir
-        </a>
-        <button 
-          type="button"
-          onClick={() => {
-            // Kapatırken arka plan kilidini açıyoruz
-            document.body.style.overflow = '';
-            setActiveModalUrl(null);
-          }}
-          className="bg-gray-800 hover:bg-gray-700 text-white font-bold px-3 py-1.5 rounded text-xs transition"
-        >
-          ✕ Kapat
-        </button>
-      </div>
-    </div>
-
-    {/* Orta Alan: Dinamik İçerik Gösterici */}
-    <div 
-      className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center overflow-hidden rounded-xl bg-gray-950 border border-gray-800"
-      onClick={(e) => e.stopPropagation()} 
-    >
-      {['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => activeModalUrl.toLowerCase().endsWith(ext)) ? (
-        <img 
-          src={activeModalUrl} 
-          alt="Büyük Önizleme" 
-          className="max-w-full max-h-[75vh] object-contain select-none shadow-2xl"
-        />
-      ) : ['mp4', 'webm', 'ogg', 'mov'].some(ext => activeModalUrl.toLowerCase().endsWith(ext)) ? (
-        <video 
-          src={activeModalUrl} 
-          controls 
-          autoPlay
-          playsInline
-          className="max-w-full max-h-[75vh] rounded-lg shadow-2xl"
-        />
-      ) : ['txt', 'log'].some(ext => activeModalUrl.toLowerCase().endsWith(ext)) ? (
-        <iframe 
-          src={activeModalUrl} 
-          className="w-full h-full bg-gray-900 text-gray-100 p-2 font-mono border-0 touch-auto"
-          title="Metin Önizleme"
-        />
-      ) : (
-        <div className="text-center p-8">
-          <div className="text-5xl mb-3">{typeof dosyaIkonuVer === 'function' ? dosyaIkonuVer(activeModalUrl) : '📁'}</div>
-          <p className="text-sm text-gray-400 mb-4">Bu dosya formatı tarayıcı içinde doğrudan önizlenemez.</p>
-          <a 
-            href={activeModalUrl} 
-            download
-            className="inline-block bg-emerald-500 hover:bg-emerald-400 text-gray-900 font-bold px-6 py-2 rounded-lg transition"
-          >
-            📥 Dosyayı Cihaza İndir
-          </a>
-        </div>
-      )}
-    </div>
-
-    {/* Alt Kısım */}
-    <div className="text-center text-[11px] text-gray-500 mt-2 pointer-events-none">
-      Kapatmak için dışarıdaki boş bir alana dokunabilirsiniz.
-    </div>
-  </div>
-)}
+      {/* Sayfanın en altına (main kapanışının hemen önüne) da pop-up bileşenini bırakıyorsun: */}
+      <MedyaOnizlemeModal
+        activeModalUrl={activeModalUrl}
+        setActiveModalUrl={setActiveModalUrl}
+        dosyaAdiniAyıkla={dosyaAdiniAyıkla}
+        dosyaIkonuVer={dosyaIkonuVer}
+      />
     </div>
   );
 }
