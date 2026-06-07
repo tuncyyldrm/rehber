@@ -3,11 +3,14 @@ import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import Tesseract from 'tesseract.js';
 
+// 1. Fonksiyon dışında sadece çevre değişkenleri ve Supabase client tanımlanır:
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function AsistanCRM() {
+  // Tam ekran dosya/video önizleme state'i (Artık doğru yerde!)
+  const [activeModalUrl, setActiveModalUrl] = useState(null);
   const [searchTel, setSearchTel] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -536,31 +539,41 @@ export default function AsistanCRM() {
                       <div className="mt-4 border-t border-gray-800 pt-3">
                         <span className="text-xs text-gray-500 block mb-2">Ekteki Dosyalar ({item.dosyalar.length}):</span>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {item.dosyalar.map((url, i) => {
-                            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
-                            const dosyaAdi = dosyaAdiniAyıkla(url);
-                            return (
-                              <div key={i} className="bg-gray-800 p-2 rounded border border-gray-700 flex flex-col justify-between items-center h-[130px] text-center min-w-0">
-                                {isImage ? (
-                                  <a href={url} target="_blank" rel="noreferrer" className="w-full flex justify-center">
-                                    <img src={url} alt="Ek" className="w-full h-[65px] rounded object-cover hover:opacity-80" />
-                                  </a>
-                                ) : (
-                                  <div className="w-full h-[65px] bg-gray-950 rounded flex items-center justify-center text-xl">
-                                    {dosyaIkonuVer(url)}
-                                  </div>
-                                )}
-                                <div className="w-full mt-1 min-w-0">
-                                  <p className="text-[10px] text-gray-300 truncate px-1" title={dosyaAdi}>
-                                    {dosyaAdi}
-                                  </p>
-                                  <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-400 hover:underline block mt-0.5 font-semibold">
-                                    📥 İndir / Aç
-                                  </a>
-                                </div>
-                              </div>
-                            );
-                          })}
+{item.dosyalar.map((url, i) => {
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
+  const dosyaAdi = dosyaAdiniAyıkla(url);
+  return (
+    <div key={i} className="bg-gray-800 p-2 rounded border border-gray-700 flex flex-col justify-between items-center h-[130px] text-center min-w-0">
+      {isImage ? (
+        // Görsele tıklayınca pop-up açar
+        <button 
+          type="button" 
+          onClick={() => setActiveModalUrl(url)} 
+          className="w-full flex justify-center focus:outline-none"
+        >
+          <img src={url} alt="Ek" className="w-full h-[65px] rounded object-cover hover:opacity-80 transition" />
+        </button>
+      ) : (
+        <div className="w-full h-[65px] bg-gray-950 rounded flex items-center justify-center text-xl">
+          {dosyaIkonuVer(url)}
+        </div>
+      )}
+      <div className="w-full mt-1 min-w-0">
+        <p className="text-[10px] text-gray-300 truncate px-1" title={dosyaAdi}>
+          {dosyaAdi}
+        </p>
+        {/* YENİ SEKMEDE AÇMAK YERİNE POPUP AÇAN BUTON */}
+        <button
+          type="button"
+          onClick={() => setActiveModalUrl(url)}
+          className="text-[10px] text-emerald-400 hover:underline block mt-0.5 font-semibold mx-auto focus:outline-none"
+        >
+          🔍 Önizle / İncele
+        </button>
+      </div>
+    </div>
+  );
+})}
                         </div>
                       </div>
                     )}
@@ -634,7 +647,7 @@ export default function AsistanCRM() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">Görüştüğünüz Kişi *</label>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Kişi *</label>
                 <input
                   type="text"
                   required
@@ -713,8 +726,99 @@ export default function AsistanCRM() {
             </button>
           </form>
         </div>
-
       </main>
+{/* ================= TAM EKRAN DOSYA ÖNİZLEME POP-UP (MODAL) ================= */}
+{activeModalUrl && (
+  <div 
+    className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[9999] flex flex-col justify-between p-4 overscroll-none touch-none animate-fadeIn"
+    onClick={() => {
+      // Kapatırken arka plan kilidini açıyoruz
+      document.body.style.overflow = '';
+      setActiveModalUrl(null);
+    }} 
+    ref={(el) => {
+      // DOM'a yüklendiği an (render olduğunda) arka planı çivi gibi çakar
+      if (el) {
+        document.body.style.overflow = 'hidden';
+      }
+    }}
+  >
+    {/* Üst Bar: Dosya Adı ve Kapat Butonu */}
+    <div className="flex justify-between items-center bg-gray-900/80 p-3 rounded-lg border border-gray-800 backdrop-blur w-full max-w-5xl mx-auto mb-2 shrink-0">
+      <span className="text-xs sm:text-sm font-mono text-gray-300 truncate max-w-[70%]">
+        📄 {dosyaAdiniAyıkla(activeModalUrl)}
+      </span>
+      <div className="flex items-center gap-3">
+        <a 
+          href={activeModalUrl} 
+          download
+          target="_blank" 
+          rel="noreferrer"
+          className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded transition flex items-center gap-1"
+          onClick={(e) => e.stopPropagation()} 
+        >
+          📥 İndir
+        </a>
+        <button 
+          type="button"
+          onClick={() => {
+            // Kapatırken arka plan kilidini açıyoruz
+            document.body.style.overflow = '';
+            setActiveModalUrl(null);
+          }}
+          className="bg-gray-800 hover:bg-gray-700 text-white font-bold px-3 py-1.5 rounded text-xs transition"
+        >
+          ✕ Kapat
+        </button>
+      </div>
+    </div>
+
+    {/* Orta Alan: Dinamik İçerik Gösterici */}
+    <div 
+      className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center overflow-hidden rounded-xl bg-gray-950 border border-gray-800"
+      onClick={(e) => e.stopPropagation()} 
+    >
+      {['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => activeModalUrl.toLowerCase().endsWith(ext)) ? (
+        <img 
+          src={activeModalUrl} 
+          alt="Büyük Önizleme" 
+          className="max-w-full max-h-[75vh] object-contain select-none shadow-2xl"
+        />
+      ) : ['mp4', 'webm', 'ogg', 'mov'].some(ext => activeModalUrl.toLowerCase().endsWith(ext)) ? (
+        <video 
+          src={activeModalUrl} 
+          controls 
+          autoPlay
+          playsInline
+          className="max-w-full max-h-[75vh] rounded-lg shadow-2xl"
+        />
+      ) : ['txt', 'log'].some(ext => activeModalUrl.toLowerCase().endsWith(ext)) ? (
+        <iframe 
+          src={activeModalUrl} 
+          className="w-full h-full bg-gray-900 text-gray-100 p-2 font-mono border-0 touch-auto"
+          title="Metin Önizleme"
+        />
+      ) : (
+        <div className="text-center p-8">
+          <div className="text-5xl mb-3">{typeof dosyaIkonuVer === 'function' ? dosyaIkonuVer(activeModalUrl) : '📁'}</div>
+          <p className="text-sm text-gray-400 mb-4">Bu dosya formatı tarayıcı içinde doğrudan önizlenemez.</p>
+          <a 
+            href={activeModalUrl} 
+            download
+            className="inline-block bg-emerald-500 hover:bg-emerald-400 text-gray-900 font-bold px-6 py-2 rounded-lg transition"
+          >
+            📥 Dosyayı Cihaza İndir
+          </a>
+        </div>
+      )}
+    </div>
+
+    {/* Alt Kısım */}
+    <div className="text-center text-[11px] text-gray-500 mt-2 pointer-events-none">
+      Kapatmak için dışarıdaki boş bir alana dokunabilirsiniz.
+    </div>
+  </div>
+)}
     </div>
   );
 }
