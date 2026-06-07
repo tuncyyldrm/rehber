@@ -126,7 +126,7 @@ export default function AsistanCRM() {
 
     try {
       const dataUrl = canvas.toDataURL('image/jpeg');
-      
+
       // Tesseract ile metin çözme
       const { data: { text } } = await Tesseract.recognize(dataUrl, 'eng');
 
@@ -139,7 +139,7 @@ export default function AsistanCRM() {
       // Eski regex yerine gelen akıllı temizleme ve sadeleştirme motoru:
       if (telefonBulucu) {
         let yakalananNumara = telefonBulucu[0];
-        
+
         // Eğer numara 905 ile başlıyorsa (12 haneliyse), başındaki 90'ı atıp 05 veya direkt 5 yapıyoruz
         if (yakalananNumara.startsWith('905') && yakalananNumara.length === 12) {
           yakalananNumara = '0' + yakalananNumara.slice(2); // 90531... -> 0531... yapar
@@ -320,10 +320,10 @@ export default function AsistanCRM() {
 
   const kayıtSil = async (id) => {
     if (!confirm("Bu çağrı kaydını silmek istediğinize emin misiniz?")) return;
-    
+
     const { error } = await supabase
       .from('musteriler')
-      .update({ is_deleted: true }) 
+      .update({ is_deleted: true })
       .eq('id', id);
 
     if (!error) {
@@ -368,9 +368,9 @@ export default function AsistanCRM() {
     const tel = item.tel?.trim() || '';
     const firma = item.firma?.trim() || '';
     const kisi = item.kisi?.trim() || '';
-    
+
     const key = `${tel}-${firma}-${kisi}`;
-    
+
     if (!gorulenKombinasyonlar.has(key) && (tel || firma || kisi)) {
       gorulenKombinasyonlar.add(key);
       benzersizOneriler.push({ tel, firma, kisi });
@@ -415,7 +415,7 @@ export default function AsistanCRM() {
                 </button>
               )}
             </div>
-            
+
             <button
               type="button"
               onClick={isCameraOpen ? kamerayiKapat : kamerayiAc}
@@ -428,7 +428,7 @@ export default function AsistanCRM() {
           {/* KAMERA ALANI */}
           {isCameraOpen && (
             <div className="mt-2 bg-gray-950 p-2 rounded-xl border border-gray-700 flex flex-col items-center">
-              
+
               {/* aspect-video yerine aspect-[4/1] ve h-12 gibi sınırlandırmalarla ince bir şerit yaptık */}
               <div className="relative w-full max-w-md aspect-[4/1] h-10 bg-black rounded-lg overflow-hidden border border-gray-600 shadow-inner">
                 <video
@@ -436,16 +436,16 @@ export default function AsistanCRM() {
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-full object-cover object-center" 
+                  className="w-full h-full object-cover object-center"
                 />
-                
+
                 {/* İnce açılı yeni tarama hedef çizgisi */}
                 <div className="absolute inset-0 border-2 border-emerald-500/30 bg-emerald-500/5 pointer-events-none flex items-center justify-center">
                   {/* Ortadaki kırmızı/yeşil lazer çizgisi efekti */}
                   <div className="w-full h-[1px] bg-emerald-400 opacity-70 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
                 </div>
               </div>
-              
+
               <canvas ref={canvasRef} className="hidden" />
 
               <button
@@ -469,38 +469,69 @@ export default function AsistanCRM() {
             ) : (
               <div className="space-y-3 max-h-[550px] overflow-y-auto pr-2">
                 {results.map((item) => (
-                  <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-3">
-                      <div className="min-w-0 flex-1">
+                  // En dış kutuda "w-full overflow-hidden" kartın dışarı taşmasını kesin olarak engeller
+                  <div key={item.id} className="bg-gray-900 p-4 rounded-lg border-l-4 border-emerald-500 shadow w-full overflow-hidden">
+
+                    {/* İçerik ve butonları taşıyan ana esnek kutu. Mobilde alt alta, sm ekranda yan yana */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-3 w-full min-w-0">
+
+                      {/* Sol Taraf: Metinlerin olduğu alan. "w-full min-w-0" truncate'in çalışması için zorunludur */}
+                      <div className="w-full min-w-0 flex-1">
                         <span className="text-xs text-gray-500 font-mono">
                           {new Date(item.created_at).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        <h4 className="text-lg font-bold text-white uppercase mt-1 truncate">{item.firma || "Bilinmeyen Firma"}</h4>
-                        <p className="text-sm text-gray-300">Yetkili: <span className="font-semibold">{item.kisi || "Belirtilmemiş"}</span></p>
+
+                        {/* Firma Başlığı Kapsayıcısı */}
+                        <div className="group relative w-full min-w-0 mt-1">
+                          <h4
+                            onClick={(e) => {
+                              // Tıklayınca kesme özelliğini aç/kapat yapar
+                              e.currentTarget.classList.toggle('whitespace-normal');
+                              e.currentTarget.classList.toggle('truncate');
+                            }}
+                            className="text-lg font-bold text-white uppercase truncate cursor-pointer transition-all duration-200 select-none hover:text-emerald-400 block w-full"
+                            title="Tam ismi görmek için tıklayın"
+                          >
+                            {item.firma || "Bilinmeyen Firma"}
+                          </h4>
+
+                          {/* MASAÜSTÜ İÇİN HOVER TAM METİN BALONCUĞU (TOOLTIP) */}
+                          <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 max-w-xs sm:max-w-md bg-gray-950 text-gray-200 text-xs p-2 rounded-md shadow-xl border border-gray-700 font-sans font-normal normal-case pointer-events-none whitespace-normal">
+                            {item.firma || "Bilinmeyen Firma"}
+                          </div>
+                        </div>
+
+                        <p className="text-sm text-gray-300 mt-1 truncate">
+                          Yetkili: <span className="font-semibold">{item.kisi || "Belirtilmemiş"}</span>
+                        </p>
 
                         <a href={`tel:${item.tel}`} className="inline-flex items-center text-xs text-emerald-400 hover:underline mt-2 font-mono bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800 w-auto">
                           📞 {item.tel} (Geri Ara)
                         </a>
                       </div>
 
-                      <div className="flex sm:flex-col items-end gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
+                      {/* Sağ Taraf: Uygulama Etiketi ve Düzenle/Sil Butonları */}
+                      <div className="flex sm:flex-col items-end gap-2 shrink-0 w-full sm:w-auto justify-between sm:justify-start border-t border-gray-800 sm:border-0 pt-2 sm:pt-0">
                         <span className={`px-2 py-1 rounded text-xs font-bold shrink-0 ${item.uygulama?.toLowerCase().includes('gastro') ? 'bg-red-900/60 text-red-300 border border-red-700' : 'bg-blue-900/60 text-blue-300 border border-blue-700'}`}>
-                          {item.uygulama}
+                          {item.uygulama || "Gastropos"}
                         </span>
 
                         <div className="flex gap-1.5 mt-auto sm:mt-1">
-                          <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition">📝 Düzenle</button>
-                          <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition">🗑️ Sil</button>
+                          <button onClick={() => duzenleModunuAc(item)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition shrink-0">📝 Düzenle</button>
+                          <button onClick={() => kayıtSil(item.id)} className="bg-red-600 hover:bg-red-500 text-white text-xs px-2.5 py-1 rounded shadow font-medium transition shrink-0">🗑️ Sil</button>
                         </div>
                       </div>
+
                     </div>
 
-                    {item.aciklama && (
-                      <p className="mt-3 text-sm bg-gray-800 p-2 rounded text-gray-300 border border-gray-700 whitespace-pre-line">
+                    {/* Açıklama Alanı */}
+                    {item.aciklama && item.aciklama.trim() && (
+                      <p className="mt-3 text-sm bg-gray-800 p-2 rounded text-gray-300 border border-gray-700 whitespace-pre-line overflow-hidden text-ellipsis">
                         {item.aciklama}
                       </p>
                     )}
 
+                    {/* Dosyalar Alanı (Aynen Korundu) */}
                     {item.dosyalar && item.dosyalar.length > 0 && (
                       <div className="mt-4 border-t border-gray-800 pt-3">
                         <span className="text-xs text-gray-500 block mb-2">Ekteki Dosyalar ({item.dosyalar.length}):</span>
@@ -509,7 +540,7 @@ export default function AsistanCRM() {
                             const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext));
                             const dosyaAdi = dosyaAdiniAyıkla(url);
                             return (
-                              <div key={i} className="bg-gray-800 p-2 rounded border border-gray-700 flex flex-col justify-between items-center h-[130px] text-center">
+                              <div key={i} className="bg-gray-800 p-2 rounded border border-gray-700 flex flex-col justify-between items-center h-[130px] text-center min-w-0">
                                 {isImage ? (
                                   <a href={url} target="_blank" rel="noreferrer" className="w-full flex justify-center">
                                     <img src={url} alt="Ek" className="w-full h-[65px] rounded object-cover hover:opacity-80" />
@@ -519,7 +550,7 @@ export default function AsistanCRM() {
                                     {dosyaIkonuVer(url)}
                                   </div>
                                 )}
-                                <div className="w-full mt-1">
+                                <div className="w-full mt-1 min-w-0">
                                   <p className="text-[10px] text-gray-300 truncate px-1" title={dosyaAdi}>
                                     {dosyaAdi}
                                   </p>
@@ -533,6 +564,7 @@ export default function AsistanCRM() {
                         </div>
                       </div>
                     )}
+
                   </div>
                 ))}
               </div>
