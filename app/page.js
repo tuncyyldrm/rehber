@@ -40,7 +40,7 @@ export default function AsistanCRM() {
       } else {
         setResults([]);
       }
-    }, 100);
+    }, 250);
     return () => clearTimeout(delayDebounceFn);
   }, [searchTel]);
 
