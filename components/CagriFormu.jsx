@@ -63,7 +63,7 @@ export default function CagriFormu({
                 <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">Telefon *</label>
                     <input
-                        type="text" 
+                        type="text"
                         required
                         className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white font-mono focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                         value={formData.tel}
@@ -71,42 +71,41 @@ export default function CagriFormu({
                     />
                 </div>
 
-{/* ÖNERİ MOTORU PANELI (Sadeleştirilmiş ve Tam Responsive) */}
-{!editingId && gosterilecekOneriler.length > 0 && (
-  <div className="bg-gray-900 border border-gray-700 p-2 rounded-lg text-xs space-y-1">
-    <div className="grid grid-cols-1 gap-1">
-      {gosterilecekOneriler.map((oneri, idx) => {
-        const isSelected = formData.tel === oneri.tel;
-        
-        return (
-          <button
-            key={idx}
-            type="button"
-            className={`w-full p-2 rounded text-left flex items-center justify-between border ${
-              isSelected ? "bg-emerald-900 border-emerald-500" : "bg-gray-800 border-gray-700 hover:border-gray-500"
-            }`}
-            onClick={() => setFormData(prev => ({ ...prev, tel: oneri.tel, firma: oneri.firma, kisi: oneri.kisi }))}
-          >
-            <div className="truncate">
-              <div className="font-semibold text-gray-200 truncate">{oneri.firma || "İsimsiz"}</div>
-              <div className={`font-mono ${isSelected ? "text-emerald-100" : "text-emerald-500"}`}>
-                {oneri.tel} {oneri.kisi && <span className="text-gray-400">/ {oneri.kisi}</span>}
-              </div>
-            </div>
-            {isSelected && <span className="text-[10px] bg-emerald-500 px-1.5 py-0.5 rounded text-white">Seçili</span>}
-          </button>
-        );
-      })}
-    </div>
-  </div>
-)}
+                {/* ÖNERİ MOTORU PANELI (Sadeleştirilmiş ve Tam Responsive) */}
+                {!editingId && gosterilecekOneriler.length > 0 && (
+                    <div className="bg-gray-900 border border-gray-700 p-2 rounded-lg text-xs space-y-1">
+                        <div className="grid grid-cols-1 gap-1">
+                            {gosterilecekOneriler.map((oneri, idx) => {
+                                const isSelected = formData.tel === oneri.tel;
+
+                                return (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        className={`w-full p-2 rounded text-left flex items-center justify-between border ${isSelected ? "bg-emerald-900 border-emerald-500" : "bg-gray-800 border-gray-700 hover:border-gray-500"
+                                            }`}
+                                        onClick={() => setFormData(prev => ({ ...prev, tel: oneri.tel, firma: oneri.firma, kisi: oneri.kisi }))}
+                                    >
+                                        <div className="truncate">
+                                            <div className="font-semibold text-gray-200 truncate">{oneri.firma || "İsimsiz"}</div>
+                                            <div className={`font-mono ${isSelected ? "text-emerald-100" : "text-emerald-500"}`}>
+                                                {oneri.tel} {oneri.kisi && <span className="text-gray-400">/ {oneri.kisi}</span>}
+                                            </div>
+                                        </div>
+                                        {isSelected && <span className="text-[10px] bg-emerald-500 px-1.5 py-0.5 rounded text-white">Seçili</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Firma ve Kişi Alanları */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-400 mb-1">Firma *</label>
                         <input
-                            type="text" 
+                            type="text"
                             required
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                             value={formData.firma}
@@ -116,7 +115,7 @@ export default function CagriFormu({
                     <div>
                         <label className="block text-sm font-medium text-gray-400 mb-1">Kişi *</label>
                         <input
-                            type="text" 
+                            type="text"
                             required
                             className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                             value={formData.kisi}

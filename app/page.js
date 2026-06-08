@@ -29,7 +29,7 @@ export default function AsistanCRM() {
     tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: []
   });
 
-const formRef = useRef(null);
+  const formRef = useRef(null);
 
   // Arama Motoru (useCallback bağımlılıkları düzeltildi)
   const araMusteri = useCallback(async (metin) => {
@@ -63,7 +63,7 @@ const formRef = useRef(null);
     setLoading(false);
   }, []);
 
-// Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
+  // Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchTel.length >= 3) {
@@ -421,29 +421,29 @@ const formRef = useRef(null);
   )), [results, genisletilmisId]);
 
   // useEffect içine eklenebilecek bir örnek
-useEffect(() => {
-  const channel = supabase
-    .channel('realtime-musteriler')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'musteriler' }, payload => {
-      
-      if (payload.eventType === 'INSERT') {
-        setResults(prev => [payload.new, ...prev]);
-      } 
-      else if (payload.eventType === 'UPDATE') {
-        // Düzenlenen kaydı listede bul ve güncelle
-        setResults(prev => prev.map(item => 
-          item.id === payload.new.id ? payload.new : item
-        ));
-      } 
-      else if (payload.eventType === 'DELETE') {
-        // Silineni listeden kaldır
-        setResults(prev => prev.filter(item => item.id !== payload.old.id));
-      }
-    })
-    .subscribe();
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-musteriler')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'musteriler' }, payload => {
 
-  return () => supabase.removeChannel(channel);
-}, []);
+        if (payload.eventType === 'INSERT') {
+          setResults(prev => [payload.new, ...prev]);
+        }
+        else if (payload.eventType === 'UPDATE') {
+          // Düzenlenen kaydı listede bul ve güncelle
+          setResults(prev => prev.map(item =>
+            item.id === payload.new.id ? payload.new : item
+          ));
+        }
+        else if (payload.eventType === 'DELETE') {
+          // Silineni listeden kaldır
+          setResults(prev => prev.filter(item => item.id !== payload.old.id));
+        }
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
@@ -511,7 +511,7 @@ useEffect(() => {
             )}
           </div>
         </div>
-{/* SAĞ PANEL: FORM (results prop'u başarıyla tünellendi) */}
+        {/* SAĞ PANEL: FORM (results prop'u başarıyla tünellendi) */}
         <div className="lg:col-span-5" ref={formRef}>
           <CagriFormu
             formData={formData}
@@ -526,7 +526,7 @@ useEffect(() => {
             yuklenenDosyayiKaldir={yuklenenDosyayiKaldir}
             setActiveModalUrl={setActiveModalUrl}
             sablonEkle={sablonEkle}
-            results={results} 
+            results={results}
           />
         </div>
       </main>

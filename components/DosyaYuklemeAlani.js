@@ -25,7 +25,7 @@ export default function DosyaYuklemeAlani({
     const renderFileName = (url) => {
         if (!url) return "Dosya";
         if (url.includes('youtube.com') || url.includes('youtu.be')) return "YouTube Videosu";
-        
+
         // Hata almayı önlemek için basit bir kontrol
         try {
             return dosyaAdiniAyıkla ? dosyaAdiniAyıkla(url) : "Dosya";

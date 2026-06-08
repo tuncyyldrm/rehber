@@ -46,19 +46,19 @@ export default function KameraTaramaAlani({ isCameraOpen, ocrLoading, onCapture 
   }, [isCameraOpen]);
 
   // Fotoğrafı yakalayıp ana sayfadaki OCR fonksiyonuna gönderen köprü
-const handleYakala = () => {
+  const handleYakala = () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
-    
+
     // 1. Kırpılmış Görüntü İçin Yeni Canvas
     const cropCanvas = document.createElement('canvas');
-    
+
     // Videonun fiziksel çözünürlüğüne oranla bir kırpma alanı hesaplayalım
     // 4/1 oranında bir alanımız var, bu yüzden dikeyde videonun tam ortasından 
-    // yaklaşık %20'lik bir şerit keseceğiz.
+    // yaklaşık %10'lik bir şerit keseceğiz.
     const cropWidth = video.videoWidth;
-    const cropHeight = video.videoHeight * 0.15; // Sadece orta %15'lik dikey alanı al
+    const cropHeight = video.videoHeight * 0.10; // Sadece orta %10'lik dikey alanı al
     const yOffset = (video.videoHeight - cropHeight) / 2; // Tam ortadan başlat
 
     cropCanvas.width = cropWidth;
@@ -68,14 +68,14 @@ const handleYakala = () => {
 
     // 2. Sadece belirttiğimiz bölgeyi kopyala ve canvas'a çiz
     ctx.drawImage(
-      video, 
+      video,
       0, yOffset, cropWidth, cropHeight, // Kaynaktan al
       0, 0, cropWidth, cropHeight       // Yeni canvas'a çiz
     );
 
     // 3. Kırpılmış görüntüyü Base64'e çevir
     const dataUrl = cropCanvas.toDataURL('image/jpeg', 0.9);
-    
+
     // 4. Ana sayfaya gönder
     if (typeof onCapture === 'function') {
       onCapture(dataUrl);
@@ -85,7 +85,7 @@ const handleYakala = () => {
   if (!isCameraOpen) return null;
 
   return (
-    <div 
+    <div
       ref={kutuRef}
       tabIndex={0} // Elementin klavye/fare ile odaklanabilir olmasını sağlar
       onMouseEnter={handleMouseEnter} // Fare üzerine geldiği an odak kilitlenir

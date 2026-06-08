@@ -1,22 +1,22 @@
 import React, { memo } from 'react';
 
-const CagriKarti = ({ 
-  item, 
-  genisletilmisId, 
-  setGenisletilmisId, 
-  duzenleModunuAc, 
-  kayıtSil, 
+const CagriKarti = ({
+  item,
+  genisletilmisId,
+  setGenisletilmisId,
+  duzenleModunuAc,
+  kayıtSil,
   setActiveModalUrl,
   dosyaAdiniAyıkla,
-  dosyaIkonuVer 
+  dosyaIkonuVer
 }) => {
   // Sadece bu kart genişletilmiş mi?
   const isGenisletilmis = genisletilmisId === item.id;
 
   // Tarih formatlama işlemini her render'da değil, sadece tarih değişirse yap
-  const formattedDate = React.useMemo(() => 
-    new Date(item.created_at).toLocaleString('tr-TR', { 
-      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' 
+  const formattedDate = React.useMemo(() =>
+    new Date(item.created_at).toLocaleString('tr-TR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
     }), [item.created_at]);
 
   return (
@@ -58,7 +58,7 @@ const CagriKarti = ({
             {item.dosyalar.map((url, i) => (
               <div key={i} className="bg-gray-950 p-1.5 rounded-lg border border-gray-800 hover:border-emerald-700 transition-colors">
                 <button type="button" onClick={() => setActiveModalUrl(url)} className="w-full h-[40px] flex items-center justify-center text-xl overflow-hidden rounded bg-gray-900">
-                  {['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext)) 
+                  {['png', 'jpg', 'jpeg', 'gif', 'webp'].some(ext => url.toLowerCase().endsWith(ext))
                     ? <img src={url} alt="Ek" className="w-full h-full object-cover" loading="lazy" />
                     : <span className="opacity-80">{dosyaIkonuVer(url)}</span>}
                 </button>
@@ -75,7 +75,7 @@ const CagriKarti = ({
 // Çok kritik: Sadece ilgili veriler değiştiğinde yeniden render et!
 export default memo(CagriKarti, (prev, next) => {
   return (
-    prev.item.id === next.item.id && 
+    prev.item.id === next.item.id &&
     prev.genisletilmisId === next.genisletilmisId &&
     prev.item.aciklama === next.item.aciklama &&
     prev.item.tel === next.item.tel && // Tel değişirse güncelle
