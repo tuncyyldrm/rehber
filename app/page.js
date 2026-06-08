@@ -29,7 +29,41 @@ export default function AsistanCRM() {
     tel: '', firma: '', kisi: '', uygulama: 'Diğer', aciklama: '', dosyalar: []
   });
 
-  // Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
+const formRef = useRef(null);
+
+  // Arama Motoru (useCallback bağımlılıkları düzeltildi)
+  const araMusteri = useCallback(async (metin) => {
+    const aranacakMetin = metin?.trim();
+    if (!aranacakMetin || aranacakMetin.length < 3) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+    let query = supabase
+      .from('musteriler')
+      .select('id, tel, firma, kisi, uygulama, aciklama, dosyalar, created_at')
+      .eq('is_deleted', false);
+
+    if (/^\d+$/.test(aranacakMetin)) {
+      query = query.ilike('tel', `%${aranacakMetin}%`);
+    } else {
+      query = query.or(`firma.ilike.%${aranacakMetin}%,kisi.ilike.%${aranacakMetin}%`);
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.error("Arama hatası:", error);
+    } else {
+      setResults(data || []);
+    }
+    setLoading(false);
+  }, []);
+
+// Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchTel.length >= 3) {
@@ -42,7 +76,7 @@ export default function AsistanCRM() {
       }
     }, 250);
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTel]);
+  }, [searchTel, araMusteri, formData.tel]);
 
   // Pano (Clipboard) Dinleyicisi
   useEffect(() => {
@@ -65,38 +99,6 @@ export default function AsistanCRM() {
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [searchTel, editingId, formData.firma, formData.kisi]);
-
-  const araMusteri = useCallback(async (metin) => {
-    if (!metin || metin.trim().length < 3) {
-      setResults([]);
-      return;
-    }
-
-    setLoading(true);
-    const aranacakMetin = metin.trim();
-
-    let query = supabase
-      .from('musteriler')
-      .select('id, tel, firma, kisi, uygulama, aciklama, dosyalar, created_at') // * yerine sadece ihtiyacın olan alanları çek
-      .eq('is_deleted', false);
-
-    if (/^\d+$/.test(aranacakMetin)) {
-      query = query.ilike('tel', `%${aranacakMetin}%`);
-    } else {
-      query = query.or(`firma.ilike.%${aranacakMetin}%,kisi.ilike.%${aranacakMetin}%`);
-    }
-
-    const { data, error } = await query
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error) {
-      console.error("Arama hatası:", error);
-    } else {
-      setResults(data || []);
-    }
-    setLoading(false);
-  }, []); // Bağımlılık dizisi boş olabilir, çünkü supabase client dışarıda tanımlı
 
   // SADECE State'i yönetiyoruz, donanımı (kamera) yönetmiyoruz!
   const kamerayiAc = () => {
@@ -318,8 +320,6 @@ export default function AsistanCRM() {
       }
     }
   };
-
-  const formRef = useRef(null);
   const duzenleModunuAc = useCallback((item) => {
     // 1. Verileri doldur
     setEditingId(item.id);
@@ -355,7 +355,7 @@ export default function AsistanCRM() {
     } else {
       alert("İşlem sırasında hata oluştu: " + error.message);
     }
-  }, [searchTel]);
+  }, [searchTel, araMusteri]);
 
   const sablonEkle = (metin) => {
     setFormData(prev => ({
@@ -511,7 +511,7 @@ useEffect(() => {
             )}
           </div>
         </div>
-        {/* SAĞ PANEL: FORM - Tek bir tane olması yeterli */}
+{/* SAĞ PANEL: FORM (results prop'u başarıyla tünellendi) */}
         <div className="lg:col-span-5" ref={formRef}>
           <CagriFormu
             formData={formData}
@@ -526,6 +526,7 @@ useEffect(() => {
             yuklenenDosyayiKaldir={yuklenenDosyayiKaldir}
             setActiveModalUrl={setActiveModalUrl}
             sablonEkle={sablonEkle}
+            results={results} 
           />
         </div>
       </main>
