@@ -32,51 +32,54 @@ export default function AsistanCRM() {
   const formRef = useRef(null);
 
   // Arama Motoru (useCallback bağımlılıkları düzeltildi)
-  const araMusteri = useCallback(async (metin) => {
-    const aranacakMetin = metin?.trim();
-    if (!aranacakMetin || aranacakMetin.length < 3) {
-      setResults([]);
-      return;
-    }
+const araMusteri = useCallback(async (metin) => {
+  const aranacakMetin = metin?.trim();
+  setLoading(true);
 
-    setLoading(true);
-    let query = supabase
-      .from('musteriler')
-      .select('id, tel, firma, kisi, uygulama, aciklama, dosyalar, created_at')
-      .eq('is_deleted', false);
+  let query = supabase
+    .from('musteriler')
+    .select('id, tel, firma, kisi, uygulama, aciklama, dosyalar, created_at')
+    .eq('is_deleted', false);
 
-    if (/^\d+$/.test(aranacakMetin)) {
+  if (aranacakMetin) {
+    // Tarih araması mı? (YYYY-MM-DD formatı)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(aranacakMetin)) {
+      query = query.gte('created_at', `${aranacakMetin}T00:00:00Z`)
+                   .lte('created_at', `${aranacakMetin}T23:59:59Z`);
+    } 
+    // Telefon araması mı?
+    else if (/^\d+$/.test(aranacakMetin)) {
       query = query.ilike('tel', `%${aranacakMetin}%`);
-    } else {
+    } 
+    // İsim veya firma araması mı?
+    else {
       query = query.or(`firma.ilike.%${aranacakMetin}%,kisi.ilike.%${aranacakMetin}%`);
     }
+  }
 
-    const { data, error } = await query
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error) {
-      console.error("Arama hatası:", error);
-    } else {
-      setResults(data || []);
-    }
-    setLoading(false);
-  }, []);
+  const { data } = await query.order('created_at', { ascending: false }).limit(20);
+  setResults(data || []);
+  setLoading(false);
+}, []);
 
   // Debounce (Gecikmeli Arama) + Form Otomatik Doldurma
+// Arama ve Telefon Alanı Senkronizasyon Motoru
   useEffect(() => {
+    // 1. Telefon kısmını arama çubuğu ile her zaman senkron tut
+    // Kullanıcı arama çubuğuna bir şey yazdığında, formdaki telefon alanına da otomatik yansır
+    setFormData(prev => ({ ...prev, tel: searchTel }));
+
+    // 2. Debounce Arama Mantığı
     const delayDebounceFn = setTimeout(() => {
       if (searchTel.length >= 3) {
         araMusteri(searchTel);
-        if (/^\d+$/.test(searchTel.trim()) && (!formData.tel || formData.tel === searchTel.trim())) {
-          setFormData(prev => ({ ...prev, tel: searchTel.trim() }));
-        }
       } else {
         setResults([]);
       }
     }, 250);
+
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTel, araMusteri, formData.tel]);
+  }, [searchTel, araMusteri]); // formData.tel bağımlılığını kaldırdık, çünkü artık tek yönlü senkronizasyon var.
 
   // Pano (Clipboard) Dinleyicisi
   useEffect(() => {
@@ -490,7 +493,10 @@ export default function AsistanCRM() {
               {isCameraOpen ? '✖' : '⛶'}
             </button>
           </div>
-
+<div className="flex gap-2 mb-4">
+  <button onClick={() => { const b = new Date().toISOString().split('T')[0]; setSearchTel(b); araMusteri(b); }} className="text-xs bg-emerald-800 px-2 py-1 rounded">Bugün</button>
+  <button onClick={() => { const d = new Date(Date.now() - 86400000).toISOString().split('T')[0]; setSearchTel(d); araMusteri(d); }} className="text-xs bg-gray-700 px-2 py-1 rounded">Dün</button>
+</div>
           {/* KAMERA ALANI */}
           <KameraTaramaAlani
             isCameraOpen={isCameraOpen}
