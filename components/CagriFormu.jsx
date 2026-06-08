@@ -104,7 +104,7 @@ export default function CagriFormu({
                 {/* Firma ve Kişi Alanları */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Firma Adı *</label>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Firma *</label>
                         <input
                             type="text" 
                             required
@@ -114,7 +114,7 @@ export default function CagriFormu({
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">Görüştüğünüz Kişi *</label>
+                        <label className="block text-sm font-medium text-gray-400 mb-1">Kişi *</label>
                         <input
                             type="text" 
                             required
