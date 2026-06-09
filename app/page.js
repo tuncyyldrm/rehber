@@ -198,75 +198,75 @@ const araMusteri = useCallback(async (metin) => {
     });
   };
 
-  const handleCokluDosyaYukle = async (e) => {
-    try {
-      // 1. DURUM: BAĞLANTI (PASTE / CTRL+V) SÜZGECİ
-      // Eğer fonksiyon bir yapıştırma olayıyla (onPaste) tetiklendiyse
-      if (e.clipboardData) {
-        const pastedText = e.clipboardData.getData('text');
+const handleCokluDosyaYukle = async (e) => {
+  try {
+    // 1. DURUM: BAĞLANTI (PASTE / CTRL+V) SÜZGECİ
+    // Eğer fonksiyon bir yapıştırma olayıyla (onPaste) tetiklendiyse
+    if (e.clipboardData) {
+      const pastedText = e.clipboardData.getData('text');
 
-        // Yapıştırılan metin bir YouTube linki mi?
-        if (pastedText && (pastedText.includes('youtube.com') || pastedText.includes('youtu.be'))) {
-          e.preventDefault(); // Tarayıcının varsayılan metin yapıştırma hareketini durdur
+      // Yapıştırılan metin bir YouTube linki mi?
+      if (pastedText && (pastedText.includes('youtube.com') || pastedText.includes('youtu.be'))) {
+        e.preventDefault(); // Tarayıcının varsayılan metin yapıştırma hareketini durdur
 
-          setFormData(prev => ({
-            ...prev,
-            dosyalar: [...prev.dosyalar, pastedText.trim()]
-          }));
+        setFormData(prev => ({
+          ...prev,
+          dosyalar: [...prev.dosyalar, pastedText.trim()]
+        }));
 
-          alert("🎬 YouTube video bağlantısı başarıyla eklendi!");
-          return;
-        }
+        alert("🎬 YouTube video bağlantısı başarıyla eklendi!");
+        return;
       }
-
-      // 2. DURUM: DOSYA SEÇİMİ VEYA EKRAN GÖRÜNTÜSÜ (PASTE BLOB) SÜZGECİ
-      // Input'tan dosya seçildiyse e.target.files, Ctrl+V ile görsel yapıştırıldıysa e.clipboardData.files kullanılır
-      const rawFiles = e.target?.files || e.clipboardData?.files;
-      if (!rawFiles || rawFiles.length === 0) return;
-
-      if (e.clipboardData) e.preventDefault(); // Görsel yapıştırıldıysa input kutusuna parazit metin girmesini engelle
-
-      setUploading(true);
-      const yuklenenLinkler = [];
-      const files = Array.from(rawFiles);
-
-      for (let file of files) {
-        // Görsel Kontrolü (Ekran görüntüleri otomatik olarak 'image/png' formatında gelir)
-        const gorselMi = ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'].includes(file.type);
-        if (gorselMi) {
-          file = await gorseliSikistir(file);
-        }
-
-        // Dosya adı temizleme (Ekran görüntülerinde 'image.png' veya 'clipboard.png' olur)
-        const temizIsim = file.name ? file.name.replace(/[^a-zA-Z0-9.]/g, "_") : `ekran_goruntusu_${Date.now()}.png`;
-        const dosyaAdi = `${Date.now()}-${temizIsim}`;
-
-        const { data, error } = await supabase.storage
-          .from('cagri-gorselleri')
-          .upload(dosyaAdi, file);
-
-        if (error) throw error;
-
-        const { data: publicUrlData } = supabase.storage
-          .from('cagri-gorselleri')
-          .getPublicUrl(dosyaAdi);
-
-        yuklenenLinkler.push(publicUrlData.publicUrl);
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        dosyalar: [...prev.dosyalar, ...yuklenenLinkler]
-      }));
-
-      alert(`${files.length} öge işlenerek başarıyla eklendi!`);
-    } catch (error) {
-      alert("İşlem yapılırken hata oluştu: " + error.message);
-    } finally {
-      setUploading(false);
-      if (e.target) e.target.value = ""; // Input değerini sıfırla
     }
-  };
+
+    // 2. DURUM: DOSYA SEÇİMİ, EKRAN GÖRÜNTÜSÜ VEYA SÜRÜKLE-BIRAK SÜZGECİ
+    // 🎯 REVIZE EDILEN SATIR: Tıklama (target), Yapıştırma (clipboardData) ve artık Sürükle-Bırak (dataTransfer) destekleniyor.
+    const rawFiles = e.target?.files || e.clipboardData?.files || e.dataTransfer?.files;
+    if (!rawFiles || rawFiles.length === 0) return;
+
+    if (e.clipboardData) e.preventDefault(); // Görsel yapıştırıldıysa input kutusuna parazit metin girmesini engelle
+
+    setUploading(true);
+    const yuklenenLinkler = [];
+    const files = Array.from(rawFiles);
+
+    for (let file of files) {
+      // Görsel Kontrolü (Ekran görüntüleri otomatik olarak 'image/png' formatında gelir)
+      const gorselMi = ['image/png', 'image/jpg', 'image/jpeg', 'image/webp'].includes(file.type);
+      if (gorselMi) {
+        file = await gorseliSikistir(file);
+      }
+
+      // Dosya adı temizleme (Ekran görüntülerinde 'image.png' veya 'clipboard.png' olur)
+      const temizIsim = file.name ? file.name.replace(/[^a-zA-Z0-9.]/g, "_") : `ekran_goruntusu_${Date.now()}.png`;
+      const dosyaAdi = `${Date.now()}-${temizIsim}`;
+
+      const { data, error } = await supabase.storage
+        .from('cagri-gorselleri')
+        .upload(dosyaAdi, file);
+
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('cagri-gorselleri')
+        .getPublicUrl(dosyaAdi);
+
+      yuklenenLinkler.push(publicUrlData.publicUrl);
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      dosyalar: [...prev.dosyalar, ...yuklenenLinkler]
+    }));
+
+    alert(`${files.length} öge işlenerek başarıyla eklendi!`);
+  } catch (error) {
+    alert("İşlem yapılırken hata oluştu: " + error.message);
+  } finally {
+    setUploading(false);
+    if (e.target) e.target.value = ""; // Input değerini sıfırla
+  }
+};
 
   const yuklenenDosyayiKaldir = (indexDosya) => {
     setFormData(prev => ({
