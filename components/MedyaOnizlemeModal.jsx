@@ -13,6 +13,9 @@ export default function MedyaOnizlemeModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
+  // 📱 Mobil & Tablet İçin Ek Durumlar (Touch States)
+  const [touchStartDist, setTouchStartDist] = useState(0);
+
   const [textContent, setTextContent] = useState('');
   const [textLoading, setTextLoading] = useState(false);
 
@@ -22,6 +25,7 @@ export default function MedyaOnizlemeModal({
     setZoom(1);
     setPosition({ x: 0, y: 0 });
     setTextContent('');
+    setTouchStartDist(0);
   }, [activeModalUrl]);
 
   useEffect(() => {
@@ -76,10 +80,13 @@ export default function MedyaOnizlemeModal({
   const isLogOrTxt = urlLower.endsWith('.log') || urlLower.endsWith('.txt');
   const isUniversalDoc = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'odt', 'ods'].some(ext => urlLower.endsWith(ext));
 
+  // ==========================================
+  // 💻 MASAÜSTÜ KONTROLLERİ (MOUSE & WHEEL)
+  // ==========================================
   const handleWheel = (e) => {
     if (!isImage) return;
     e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 0.1 : -0.1;
+    const zoomFactor = e.deltaY < 0 ? 0.15 : -0.15;
     setZoom(prevZoom => Math.max(0.5, Math.min(4, prevZoom + zoomFactor)));
   };
 
@@ -102,37 +109,83 @@ export default function MedyaOnizlemeModal({
     setIsDragging(false);
   };
 
-const getYoutubeEmbedUrl = () => {
-  try {
-    // Boşlukları temizle
-    const trimmedUrl = activeModalUrl?.trim() || "";
-    const url = new URL(trimmedUrl);
-    let videoId = "";
+  // ==========================================
+  // 📱 MOBİL & TABLET KONTROLLERİ (TOUCH)
+  // ==========================================
+  const handleTouchStart = (e) => {
+    if (!isImage) return;
 
-    // 1. Durum: YouTube Shorts Kontrolü (youtube.com/shorts/VIDEO_ID)
-    if (url.pathname.includes('/shorts/')) {
-      // "/shorts/abc123xyz" -> ["", "shorts", "abc123xyz"] -> son elemanı alıyoruz
-      videoId = url.pathname.split('/').pop();
-    } 
-    // 2. Durum: Kısaltılmış Link Kontrolü (youtu.be/VIDEO_ID)
-    else if (url.hostname.includes('youtu.be')) {
-      videoId = url.pathname.slice(1);
-    } 
-    // 3. Durum: Standart Web Linki Kontrolü (youtube.com/watch?v=VIDEO_ID)
-    else {
-      videoId = url.searchParams.get('v');
+    if (e.touches.length === 1) {
+      // ☝️ Tek parmak: Sürükleme / Kaydırma başlangıcı (Yalnızca büyütülmüşse)
+      if (zoom > 1) {
+        setIsDragging(true);
+        setDragStart({ 
+          x: e.touches[0].clientX - position.x, 
+          y: e.touches[0].clientY - position.y 
+        });
+      }
+    } else if (e.touches.length === 2) {
+      // ✌️ Çift parmak: Pinch-to-zoom (Yakınlaştırma) başlangıcı
+      setIsDragging(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      setTouchStartDist(dist);
     }
+  };
 
-    // Eğer bir video ID tespit edilebildiyse embed linkini dön, yoksa orijinal linki güvenli fallback bırak
-    return videoId 
-      ? `https://www.youtube.com/embed/${videoId}?autoplay=1` 
-      : trimmedUrl;
+  const handleTouchMove = (e) => {
+    if (!isImage) return;
 
-  } catch {
-    // URL parse edilemezse (düz metinse vb.) çökmemesi için orijinal veriyi dön
-    return activeModalUrl;
-  }
-};
+    if (e.touches.length === 1 && isDragging) {
+      // ☝️ Tek parmak ile resmi kaydırma
+      setPosition({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y
+      });
+    } else if (e.touches.length === 2 && touchStartDist > 0) {
+      // ✌️ Çift parmak ile kıstırarak büyütme/küçültme
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      
+      // Mesafe değişim oranını bulup zoom değerini hesaplıyoruz
+      const factor = dist / touchStartDist;
+      setTouchStartDist(dist);
+      setZoom(prevZoom => Math.max(0.5, Math.min(4, prevZoom * factor)));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    setTouchStartDist(0);
+  };
+
+  const getYoutubeEmbedUrl = () => {
+    try {
+      const trimmedUrl = activeModalUrl?.trim() || "";
+      const url = new URL(trimmedUrl);
+      let videoId = "";
+
+      if (url.pathname.includes('/shorts/')) {
+        videoId = url.pathname.split('/').pop();
+      } 
+      else if (url.hostname.includes('youtu.be')) {
+        videoId = url.pathname.slice(1);
+      } 
+      else {
+        videoId = url.searchParams.get('v');
+      }
+
+      return videoId 
+        ? `https://www.youtube.com/embed/${videoId}?autoplay=1` 
+        : trimmedUrl;
+    } catch {
+      return activeModalUrl;
+    }
+  };
 
   return (
     <div
@@ -171,11 +224,19 @@ const getYoutubeEmbedUrl = () => {
       <div 
         className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center overflow-hidden bg-gray-950 rounded-xl border border-gray-800 relative"
         onClick={e => e.stopPropagation()}
+        
+        // Masaüstü Dinleyicileri
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
+        
+        // 🚀 Mobil & Tablet Dokunmatik Dinleyicileri (Yeni Eklendi)
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         <div 
           ref={containerRef}
@@ -188,7 +249,8 @@ const getYoutubeEmbedUrl = () => {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center"
+            justifyContent: "center",
+            touchAction: isImage ? "none" : "auto" // Tarayıcının varsayılan sayfa kaydırma hareketini resim üzerinde engeller
           }}
         >
           {isYoutube ? (
@@ -202,20 +264,17 @@ const getYoutubeEmbedUrl = () => {
               {textLoading ? <div className="text-gray-400 animate-pulse">Dosya yükleniyor...</div> : <code>{textContent}</code>}
             </div>
           ) : isUniversalDoc ? (
-            /* 🚀 YENİLENMİŞ EVRENSEL GÖRÜNTÜLEYİCİ PANELİ: Hatasız, kaymasız ve scrollbar destekli yerel yapı */
             <div 
               className="w-full bg-white rounded-lg overflow-hidden"
               style={{ height: "75vh", minHeight: "75vh", maxHeight: "75vh" }}
             >
               {urlLower.endsWith('.pdf') ? (
-                /* 🎯 PDF: Tarayıcının orijinal yerel PDF okuyucusunu çağırır. Kaydırma çubuğu kusursuz akar. */
                 <iframe
                   src={`${activeModalUrl}#toolbar=1&navpanes=0`}
                   className="w-full h-full border-0 bg-white"
                   style={{ height: "75vh", width: "100%" }}
                 />
               ) : (
-                /* 🎯 Word, Excel, PowerPoint: Microsoft Office Live resmi motoru. Yarım kalma veya kırılma yapmaz. */
                 <iframe
                   src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeModalUrl)}`}
                   className="w-full h-full border-0 bg-white"
