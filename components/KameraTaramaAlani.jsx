@@ -46,41 +46,40 @@ export default function KameraTaramaAlani({ isCameraOpen, ocrLoading, onCapture 
   }, [isCameraOpen]);
 
   // Fotoğrafı yakalayıp ana sayfadaki OCR fonksiyonuna gönderen köprü
-  const handleYakala = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+const handleYakala = () => {
+  if (!videoRef.current || !canvasRef.current) return;
 
-    const video = videoRef.current;
+  const video = videoRef.current;
+  const canvas = canvasRef.current;
+  
+  // Videonun gerçek boyutlarını al
+  const vWidth = video.videoWidth;
+  const vHeight = video.videoHeight;
 
-    // 1. Kırpılmış Görüntü İçin Yeni Canvas
-    const cropCanvas = document.createElement('canvas');
+  // İnce şerit için (Örn: %10'luk alan)
+  const cropHeight = vHeight * 0.10;
+  const yOffset = (vHeight - cropHeight) / 2;
 
-    // Videonun fiziksel çözünürlüğüne oranla bir kırpma alanı hesaplayalım
-    // 4/1 oranında bir alanımız var, bu yüzden dikeyde videonun tam ortasından 
-    // yaklaşık %10'lik bir şerit keseceğiz.
-    const cropWidth = video.videoWidth;
-    const cropHeight = video.videoHeight * 0.10; // Sadece orta %10'lik dikey alanı al
-    const yOffset = (video.videoHeight - cropHeight) / 2; // Tam ortadan başlat
+  canvas.width = vWidth;
+  canvas.height = cropHeight;
 
-    cropCanvas.width = cropWidth;
-    cropCanvas.height = cropHeight;
+  const ctx = canvas.getContext('2d');
 
-    const ctx = cropCanvas.getContext('2d');
+  // Görüntüyü çiz
+  ctx.drawImage(video, 0, yOffset, vWidth, cropHeight, 0, 0, vWidth, cropHeight);
 
-    // 2. Sadece belirttiğimiz bölgeyi kopyala ve canvas'a çiz
-    ctx.drawImage(
-      video,
-      0, yOffset, cropWidth, cropHeight, // Kaynaktan al
-      0, 0, cropWidth, cropHeight       // Yeni canvas'a çiz
-    );
+  // --- OCR BAŞARIMI İÇİN FİLTRE EKLEME ---
+  // Görüntüyü gri tonlamaya çevir (OCR daha iyi sonuç verir)
+  ctx.filter = 'grayscale(100%) contrast(1.5) brightness(1.1)';
+  ctx.drawImage(canvas, 0, 0); 
 
-    // 3. Kırpılmış görüntüyü Base64'e çevir
-    const dataUrl = cropCanvas.toDataURL('image/jpeg', 0.9);
+  // Base64'e dönüştür
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
-    // 4. Ana sayfaya gönder
-    if (typeof onCapture === 'function') {
-      onCapture(dataUrl);
-    }
-  };
+  if (typeof onCapture === 'function') {
+    onCapture(dataUrl);
+  }
+};
 
   if (!isCameraOpen) return null;
 
@@ -93,13 +92,13 @@ export default function KameraTaramaAlani({ isCameraOpen, ocrLoading, onCapture 
     >
       {/* İnce Şerit Kamera Önizleme Alanı */}
       <div className="relative w-full max-w-md aspect-[4/1] h-10 bg-black rounded-lg overflow-hidden border border-gray-600 shadow-inner">
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full h-full object-cover object-center"
-        />
+<video
+  ref={videoRef}
+  autoPlay
+  playsInline
+  muted
+  className="w-full h-full object-cover object-center" // 'object-center' burada çok önemli
+/>
 
         {/* İnce açılı yeni tarama hedef çizgisi */}
         <div className="absolute inset-0 border-2 border-emerald-500/30 bg-emerald-500/5 pointer-events-none flex items-center justify-center">
