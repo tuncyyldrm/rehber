@@ -47,39 +47,67 @@ export default function KameraTaramaAlani({ isCameraOpen, ocrLoading, onCapture 
 
   // Fotoğrafı yakalayıp ana sayfadaki OCR fonksiyonuna gönderen köprü
 const handleYakala = () => {
-  if (!videoRef.current || !canvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) return;
 
-  const video = videoRef.current;
-  const canvas = canvasRef.current;
-  
-  // Videonun gerçek boyutlarını al
-  const vWidth = video.videoWidth;
-  const vHeight = video.videoHeight;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    
+    const vWidth = video.videoWidth;
+    const vHeight = video.videoHeight;
+    const cropHeight = vHeight * 0.10;
+    const yOffset = (vHeight - cropHeight) / 2;
 
-  // İnce şerit için (Örn: %10'luk alan)
-  const cropHeight = vHeight * 0.10;
-  const yOffset = (vHeight - cropHeight) / 2;
+    canvas.width = vWidth;
+    canvas.height = cropHeight;
 
-  canvas.width = vWidth;
-  canvas.height = cropHeight;
+    const ctx = canvas.getContext('2d');
+    
+    // Görüntüyü işle
+    ctx.filter = 'grayscale(100%) contrast(1.5) brightness(1.1)';
+    ctx.drawImage(video, 0, yOffset, vWidth, cropHeight, 0, 0, vWidth, cropHeight);
 
-  const ctx = canvas.getContext('2d');
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
-  // Görüntüyü çiz
-  ctx.drawImage(video, 0, yOffset, vWidth, cropHeight, 0, 0, vWidth, cropHeight);
+    // Sadece yakalanan veriyi gönder, temizleme işlemini parent (üst) bileşende yap
+    if (typeof onCapture === 'function') {
+      onCapture(dataUrl);
+    }
+  };
 
-  // --- OCR BAŞARIMI İÇİN FİLTRE EKLEME ---
-  // Görüntüyü gri tonlamaya çevir (OCR daha iyi sonuç verir)
-  ctx.filter = 'grayscale(100%) contrast(1.5) brightness(1.1)';
-  ctx.drawImage(canvas, 0, 0); 
+const normalizePhoneNumber = (rawText) => {
+  // 1. Sadece rakamları tut, diğer her şeyi (boşluk, +, -, vs.) sil
+  let clean = rawText.replace(/\D/g, '');
 
-  // Base64'e dönüştür
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-
-  if (typeof onCapture === 'function') {
-    onCapture(dataUrl);
+  // 2. Eğer 12 haneliyse ve 90 ile başlıyorsa (905...)
+  if (clean.length === 12 && clean.startsWith('90')) {
+    clean = '0' + clean.slice(2); // Başına 0 ekle, 90'ı at
   }
+  
+  // 3. Eğer 11 haneliyse ve 90 ile başlıyorsa (905...)
+  if (clean.length === 11 && clean.startsWith('90')) {
+    clean = '0' + clean.slice(2);
+  }
+
+  // 4. Eğer 10 haneliyse (531...) başına 0 ekle (Türkiye formatı)
+  if (clean.length === 10) {
+    clean = '0' + clean;
+  }
+
+  return clean; // Çıktı: 05312084897
 };
+
+// Ana sayfadaki (Parent) kullanım:
+const handleCaptureResult = (dataUrl) => {
+  // OCR işlemini burada yapıyorsunuz...
+  const ocrResult = performOCR(dataUrl); 
+  
+  // Temizlenmiş ve standartlaştırılmış numara:
+  const finalNumber = normalizePhoneNumber(ocrResult);
+  
+  // Şimdi bu finalNumber ile veritabanında arama yapın
+  aramaYap(finalNumber);
+};
+
 
   if (!isCameraOpen) return null;
 
