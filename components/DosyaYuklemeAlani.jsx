@@ -13,17 +13,15 @@ export default function DosyaYuklemeAlani({
 }) {
     
 // =================================================================
-// SMART FILE TYPE & ICON HELPER (Ses Dosyaları Dahil Güncel Sürüm)
+// SMART FILE TYPE & ICON HELPER
 // =================================================================
 const getLinkTipi = (url) => {
     if (!url) return { icon: '🔗', label: 'Link' };
     
-    // 1. YouTube ve YouTube Shorts Kontrolü
     if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('/shorts/')) {
         return { icon: '🎬', label: 'YouTube' };
     }
     
-    // 2. Dışarıdan gelen custom ikon fonksiyonu varsa çalıştır
     if (typeof dosyaIkonuVer === 'function') {
         const customIcon = dosyaIkonuVer(url);
         if (customIcon && customIcon !== '📁') {
@@ -31,16 +29,13 @@ const getLinkTipi = (url) => {
         }
     }
 
-    // 3. URL Parametrelerini (?token=...) temizleyip uzantıyı güvenli yakalama
     const temizUrl = url.split('?')[0].toLowerCase();
     
-    // 🚀 Yeni eklenen ses dosyası kontrolü (.mp3, .wav, .m4a, .aac, .ogg, .wma, .flac)
-    if (temizUrl.match(/\.(mp3|wav|m4a|aac|ogg|wma|flac)$/i)) return { icon: '🎵', label: 'Ses' };
-    
+    if (temizUrl.match(/\.(mp3|wav|m4a|aac|ogg|wma|flac|m4b|opus)$/i)) return { icon: '🎵', label: 'Ses' };
     if (temizUrl.match(/\.(jpeg|jpg|gif|png|webp|bmp|svg|avif|ico|heic)$/i)) return { icon: '🖼️', label: 'Görsel' };
     if (temizUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) return { icon: '🎥', label: 'Video' };
     if (temizUrl.endsWith('.pdf')) return { icon: '📄', label: 'PDF' };
-    if (temizUrl.match(/\.(docx|doc|xlsx|xls|pptx|ppt|csv)$/i)) return { icon: '📊', label: 'Döküman' };
+    if (temizUrl.match(/\.(docx|doc|xlsx|xls|pptx|ppt|csv|odt|ods)$/i)) return { icon: '📊', label: 'Döküman' };
     if (temizUrl.match(/\.(txt|log)$/i)) return { icon: '📝', label: 'Metin' };
     
     return { icon: '🌐', label: 'Link' };
@@ -56,9 +51,8 @@ const renderFileName = (url) => {
         return url.includes('/shorts/') ? "YouTube Shorts Videosu" : "YouTube Videosu";
     }
 
-    // 🚀 Ses dosyaları için isimlendirme kontrolü
     const temizUrl = url.split('?')[0].toLowerCase();
-    if (temizUrl.match(/\.(mp3|wav|m4a|aac|ogg|wma|flac)$/i)) {
+    if (temizUrl.match(/\.(mp3|wav|m4a|aac|ogg|wma|flac|m4b|opus)$/i)) {
         return typeof dosyaAdiniAyıkla === 'function' ? dosyaAdiniAyıkla(url) : "Ses Kaydı";
     }
 
@@ -86,18 +80,28 @@ const renderFileName = (url) => {
                     e.preventDefault();
                     if (uploading) return;
                     if (typeof handleCokluDosyaYukle === 'function') {
-                        handleCokluDosyaYukle(e);
+                        // 🔒 Güvenlik Kontrolü: Sürüklenen öğelerin kontrolü
+                        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                            handleCokluDosyaYukle(e);
+                        }
                     }
                 }}
             >
-                {/* accept niteliği ile ses dosyalarının da seçilebileceğini tarayıcıya belirttik */}
+                {/* 🎯 GÜVENLİ VE UYUMLU INPUT 
+                    Mobil işletim sistemlerinin (iOS/Android) "Ses Kaydet" ve "Kamera" seçeneklerini 
+                    menüden uçurmaması için jenerik tipleri başa aldık, uzantıları sadeleştirdik. */}
                 <input 
                     type="file" 
                     multiple 
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv"
+                    accept="audio/*,video/*,image/*,.pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/log,text/csv"
                     className="hidden" 
                     id="fileInput" 
-                    onChange={handleCokluDosyaYukle} 
+                    onChange={(e) => {
+                        if (uploading) return;
+                        if (e.target.files && e.target.files.length > 0) {
+                            handleCokluDosyaYukle(e);
+                        }
+                    }} 
                     disabled={uploading} 
                 />
                 
@@ -108,8 +112,8 @@ const renderFileName = (url) => {
                     <span className={`text-2xl ${uploading ? 'animate-bounce text-amber-500' : 'text-gray-400'}`}>
                         {uploading ? '⏳' : '📁'}
                     </span>
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                        {uploading ? 'Dosyalar İşleniyor...' : 'Dosya Sürükleyin veya Seçin'}
+                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center select-none">
+                        {uploading ? 'Dosyalar İşleniyor...' : 'Medya Seç, Ses Kaydet veya Sürükle'}
                     </span>
                 </label>
 
@@ -132,6 +136,7 @@ const renderFileName = (url) => {
             {Array.isArray(formData?.dosyalar) && formData.dosyalar.length > 0 && (
                 <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
                     {formData.dosyalar.map((url, index) => {
+                        if (!url) return null; // Boş link kırılmalarını önleme
                         const { icon } = getLinkTipi(url);
                         const uniqueKey = `${url}-${index}`;
 
