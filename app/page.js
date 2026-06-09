@@ -67,7 +67,7 @@ const araMusteri = useCallback(async (metin) => {
   useEffect(() => {
     // 1. Telefon kısmını arama çubuğu ile her zaman senkron tut
     // Kullanıcı arama çubuğuna bir şey yazdığında, formdaki telefon alanına da otomatik yansır
-    setFormData(prev => ({ ...prev, tel: searchTel }));
+    // setFormData(prev => ({ ...prev, tel: searchTel }));
 
     // 2. Debounce Arama Mantığı
     const delayDebounceFn = setTimeout(() => {
