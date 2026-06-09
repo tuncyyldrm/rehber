@@ -12,9 +12,9 @@ export default function DosyaYuklemeAlani({
     setActiveModalUrl
 }) {
     
-// =========================
-// SMART FILE TYPE & ICON HELPER (Shorts ve Parametre Destekli)
-// =========================
+// =================================================================
+// SMART FILE TYPE & ICON HELPER (Ses Dosyaları Dahil Güncel Sürüm)
+// =================================================================
 const getLinkTipi = (url) => {
     if (!url) return { icon: '🔗', label: 'Link' };
     
@@ -34,6 +34,9 @@ const getLinkTipi = (url) => {
     // 3. URL Parametrelerini (?token=...) temizleyip uzantıyı güvenli yakalama
     const temizUrl = url.split('?')[0].toLowerCase();
     
+    // 🚀 Yeni eklenen ses dosyası kontrolü (.mp3, .wav, .m4a, .aac, .ogg, .wma, .flac)
+    if (temizUrl.match(/\.(mp3|wav|m4a|aac|ogg|wma|flac)$/i)) return { icon: '🎵', label: 'Ses' };
+    
     if (temizUrl.match(/\.(jpeg|jpg|gif|png|webp|bmp|svg|avif|ico|heic)$/i)) return { icon: '🖼️', label: 'Görsel' };
     if (temizUrl.match(/\.(mp4|webm|mov|avi|mkv)$/i)) return { icon: '🎥', label: 'Video' };
     if (temizUrl.endsWith('.pdf')) return { icon: '📄', label: 'PDF' };
@@ -44,14 +47,19 @@ const getLinkTipi = (url) => {
 };
 
 // =========================
-// FILE NAME RENDERER (Shorts Destekli)
+// FILE NAME RENDERER
 // =========================
 const renderFileName = (url) => {
     if (!url) return "Dosya";
     
-    // YouTube Shorts link başlığını da yakala
     if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('/shorts/')) {
         return url.includes('/shorts/') ? "YouTube Shorts Videosu" : "YouTube Videosu";
+    }
+
+    // 🚀 Ses dosyaları için isimlendirme kontrolü
+    const temizUrl = url.split('?')[0].toLowerCase();
+    if (temizUrl.match(/\.(mp3|wav|m4a|aac|ogg|wma|flac)$/i)) {
+        return typeof dosyaAdiniAyıkla === 'function' ? dosyaAdiniAyıkla(url) : "Ses Kaydı";
     }
 
     try {
@@ -82,9 +90,11 @@ const renderFileName = (url) => {
                     }
                 }}
             >
+                {/* accept niteliği ile ses dosyalarının da seçilebileceğini tarayıcıya belirttik */}
                 <input 
                     type="file" 
                     multiple 
+                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.log,.csv"
                     className="hidden" 
                     id="fileInput" 
                     onChange={handleCokluDosyaYukle} 
@@ -112,7 +122,6 @@ const renderFileName = (url) => {
                         if (uploading) return;
                         if (typeof handleCokluDosyaYukle === 'function') {
                             handleCokluDosyaYukle(e);
-                            // Yapıştırma işleminden hemen sonra input içeriğini temiz tutmak için:
                             setTimeout(() => { e.target.value = ''; }, 50);
                         }
                     }}
@@ -124,7 +133,6 @@ const renderFileName = (url) => {
                 <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
                     {formData.dosyalar.map((url, index) => {
                         const { icon } = getLinkTipi(url);
-                        // Güvenli ve benzersiz key kuralı
                         const uniqueKey = `${url}-${index}`;
 
                         return (

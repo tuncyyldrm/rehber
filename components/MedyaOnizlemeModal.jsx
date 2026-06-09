@@ -79,6 +79,7 @@ export default function MedyaOnizlemeModal({
   const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv'].some(ext => urlLower.endsWith(ext));
   const isLogOrTxt = urlLower.endsWith('.log') || urlLower.endsWith('.txt');
   const isUniversalDoc = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'odt', 'ods'].some(ext => urlLower.endsWith(ext));
+  const isAudio = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'wma', 'flac', 'm4b', 'aiff', 'opus'].some(ext => urlLower.endsWith(ext));
 
   // ==========================================
   // 💻 MASAÜSTÜ KONTROLLERİ (MOUSE & WHEEL)
@@ -116,7 +117,6 @@ export default function MedyaOnizlemeModal({
     if (!isImage) return;
 
     if (e.touches.length === 1) {
-      // ☝️ Tek parmak: Sürükleme / Kaydırma başlangıcı (Yalnızca büyütülmüşse)
       if (zoom > 1) {
         setIsDragging(true);
         setDragStart({ 
@@ -125,7 +125,6 @@ export default function MedyaOnizlemeModal({
         });
       }
     } else if (e.touches.length === 2) {
-      // ✌️ Çift parmak: Pinch-to-zoom (Yakınlaştırma) başlangıcı
       setIsDragging(false);
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -139,19 +138,16 @@ export default function MedyaOnizlemeModal({
     if (!isImage) return;
 
     if (e.touches.length === 1 && isDragging) {
-      // ☝️ Tek parmak ile resmi kaydırma
       setPosition({
         x: e.touches[0].clientX - dragStart.x,
         y: e.touches[0].clientY - dragStart.y
       });
     } else if (e.touches.length === 2 && touchStartDist > 0) {
-      // ✌️ Çift parmak ile kıstırarak büyütme/küçültme
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
       
-      // Mesafe değişim oranını bulup zoom değerini hesaplıyoruz
       const factor = dist / touchStartDist;
       setTouchStartDist(dist);
       setZoom(prevZoom => Math.max(0.5, Math.min(4, prevZoom * factor)));
@@ -232,7 +228,7 @@ export default function MedyaOnizlemeModal({
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
         
-        // 🚀 Mobil & Tablet Dokunmatik Dinleyicileri (Yeni Eklendi)
+        // Mobil & Tablet Dokunmatik Dinleyicileri
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -250,7 +246,7 @@ export default function MedyaOnizlemeModal({
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            touchAction: isImage ? "none" : "auto" // Tarayıcının varsayılan sayfa kaydırma hareketini resim üzerinde engeller
+            touchAction: isImage ? "none" : "auto"
           }}
         >
           {isYoutube ? (
@@ -259,6 +255,20 @@ export default function MedyaOnizlemeModal({
             <img src={activeModalUrl} alt="Önizleme" className="max-w-full max-h-[75vh] object-contain pointer-events-none drop-shadow-2xl" />
           ) : isVideo ? (
             <video src={activeModalUrl} controls autoPlay className="w-full max-h-[75vh] rounded-lg bg-black" />
+          
+          ) : isAudio ? (
+            /* 🚀 SES DOSYALARI İÇİN ÖZEL PANEL ALANI */
+            <div className="w-full max-w-md bg-gray-900 border border-gray-800 p-6 rounded-xl flex flex-col items-center gap-4 shadow-2xl border-t-4 border-t-emerald-500">
+              <span className="text-4xl animate-pulse">🎵</span>
+              <div className="text-center w-full min-w-0">
+                <p className="text-xs text-gray-400 font-mono mb-1 uppercase tracking-wider">Ses Dosyası Oynatılıyor</p>
+                <p className="text-sm font-semibold text-gray-200 truncate px-2">
+                  {dosyaAdiniAyıkla ? dosyaAdiniAyıkla(activeModalUrl) : 'Bilinmeyen Kayıt'}
+                </p>
+              </div>
+              <audio src={activeModalUrl} controls autoPlay className="w-full accent-emerald-500 mt-2" />
+            </div>
+
           ) : isLogOrTxt ? (
             <div className="w-full h-full max-h-[75vh] bg-gray-900 border border-gray-800 rounded-lg p-4 font-mono text-xs text-emerald-400 overflow-auto whitespace-pre select-text text-left shadow-inner border-t-4 border-t-emerald-600">
               {textLoading ? <div className="text-gray-400 animate-pulse">Dosya yükleniyor...</div> : <code>{textContent}</code>}
