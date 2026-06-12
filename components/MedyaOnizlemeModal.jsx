@@ -32,7 +32,10 @@ export default function MedyaOnizlemeModal({
     if (!activeModalUrl) return;
 
     const urlLower = activeModalUrl.toLowerCase().split('?')[0];
-    const isTextOrLog = urlLower.endsWith('.log') || urlLower.endsWith('.txt');
+const isTextOrLog = urlLower.endsWith('.log') || 
+                        urlLower.endsWith('.txt') || 
+                        urlLower.endsWith('.sql') || 
+                        urlLower.endsWith('.repx');
 
     if (isTextOrLog) {
       setTextLoading(true);
