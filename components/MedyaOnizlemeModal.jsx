@@ -77,7 +77,7 @@ export default function MedyaOnizlemeModal({
 
   const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'svg', 'avif', 'ico', 'heic'].some(ext => urlLower.endsWith(ext));
   const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv'].some(ext => urlLower.endsWith(ext));
-  const isLogOrTxt = urlLower.endsWith('.log') || urlLower.endsWith('.txt');
+  const isLogOrTxt = urlLower.endsWith('.log') || urlLower.endsWith('.txt') || urlLower.endsWith('.sql') || urlLower.endsWith('.repx');
   const isUniversalDoc = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'odt', 'ods'].some(ext => urlLower.endsWith(ext));
   const isAudio = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'wma', 'flac', 'm4b', 'aiff', 'opus'].some(ext => urlLower.endsWith(ext));
 
