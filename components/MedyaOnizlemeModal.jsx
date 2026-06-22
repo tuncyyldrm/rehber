@@ -2,6 +2,26 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 
+// 📝 Metin tabanlı okunabilir tüm dosya uzantılarının merkezi listesi (Genişletilmiş Versiyon)
+const allowedTextExtensions = [
+  // Genel Metin & Log Dosyaları
+  '.html', '.htm', '.log', '.txt', '.sql', '.repx', '.csv', '.md', '.rst',
+  
+  // Veri Yapıları & Konfigürasyonlar
+  '.xml', '.json', '.jsonld', '.yaml', '.yml', '.toml',
+  '.ini', '.conf', '.env', '.gitignore', '.lock',
+  
+  // Web Geliştirme (Script & Stil)
+  '.js', '.mjs', '.cjs', '.jsx',
+  '.ts', '.tsx',
+  '.css', '.scss', '.sass', '.less',
+  '.vue', '.svelte',
+  
+  // Programlama & Script Dilleri (Backend / Sistem)
+  '.py', '.sh', '.bat', '.cmd', '.ps1',
+  '.cs', '.java', '.c', '.cpp', '.h', '.go', '.rb', '.php'
+];
+
 export default function MedyaOnizlemeModal({ 
   activeModalUrl, 
   setActiveModalUrl, 
@@ -13,29 +33,42 @@ export default function MedyaOnizlemeModal({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   
-  // 📱 Mobil & Tablet İçin Ek Durumlar (Touch States)
+  // 📱 Mobil & Tablet İçin Ek Durumlar
   const [touchStartDist, setTouchStartDist] = useState(0);
 
   const [textContent, setTextContent] = useState('');
   const [textLoading, setTextLoading] = useState(false);
+  
+  // 🌐 HTML için önizleme modu: 'live' (canlı render) veya 'code' (düz metin)
+  const [htmlViewMode, setHtmlViewMode] = useState('live'); 
+  // 🔗 Gerçek HTML çıktısı için güvenli yerel URL deposu
+  const [htmlBlobUrl, setHtmlBlobUrl] = useState('');
 
   const containerRef = useRef(null);
+
+  // 🧹 Bellek sızıntılarını önlemek için oluşturulan Blob URL'i RAM'den siler
+  const cleanBlobUrl = () => {
+    if (htmlBlobUrl) {
+      URL.revokeObjectURL(htmlBlobUrl);
+      setHtmlBlobUrl('');
+    }
+  };
 
   useEffect(() => {
     setZoom(1);
     setPosition({ x: 0, y: 0 });
     setTextContent('');
     setTouchStartDist(0);
+    setHtmlViewMode('live'); // Varsayılan olarak canlı çıktıyla başla
+    cleanBlobUrl();
   }, [activeModalUrl]);
 
   useEffect(() => {
     if (!activeModalUrl) return;
 
     const urlLower = activeModalUrl.toLowerCase().split('?')[0];
-const isTextOrLog = urlLower.endsWith('.log') || 
-                        urlLower.endsWith('.txt') || 
-                        urlLower.endsWith('.sql') || 
-                        urlLower.endsWith('.repx');
+    const isTextOrLog = allowedTextExtensions.some(ext => urlLower.endsWith(ext));
+    const isHtmlOrHtm = urlLower.endsWith('.html') || urlLower.endsWith('.htm');
 
     if (isTextOrLog) {
       setTextLoading(true);
@@ -46,6 +79,14 @@ const isTextOrLog = urlLower.endsWith('.log') ||
         })
         .then(data => {
           setTextContent(data);
+          
+          // 🔥 Eğer dosya HTML ise canlı render için sanal bir tarayıcı linki üretiyoruz
+          if (isHtmlOrHtm) {
+            const blob = new Blob([data], { type: 'text/html; charset=utf-8' });
+            const localUrl = URL.createObjectURL(blob);
+            setHtmlBlobUrl(localUrl);
+          }
+          
           setTextLoading(false);
         })
         .catch(() => {
@@ -53,6 +94,8 @@ const isTextOrLog = urlLower.endsWith('.log') ||
           setTextLoading(false);
         });
     }
+
+    return () => cleanBlobUrl();
   }, [activeModalUrl]);
 
   useEffect(() => {
@@ -80,7 +123,10 @@ const isTextOrLog = urlLower.endsWith('.log') ||
 
   const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tiff', 'svg', 'avif', 'ico', 'heic'].some(ext => urlLower.endsWith(ext));
   const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'flv', 'wmv'].some(ext => urlLower.endsWith(ext));
-  const isLogOrTxt = urlLower.endsWith('.log') || urlLower.endsWith('.txt') || urlLower.endsWith('.sql') || urlLower.endsWith('.repx');
+  
+  const isLogOrTxt = allowedTextExtensions.some(ext => urlLower.endsWith(ext));
+  const isHtml = urlLower.endsWith('.html') || urlLower.endsWith('.htm'); // .htm ve .html tam kontrolü
+  
   const isUniversalDoc = ['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'csv', 'odt', 'ods'].some(ext => urlLower.endsWith(ext));
   const isAudio = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'wma', 'flac', 'm4b', 'aiff', 'opus'].some(ext => urlLower.endsWith(ext));
 
@@ -118,7 +164,6 @@ const isTextOrLog = urlLower.endsWith('.log') ||
   // ==========================================
   const handleTouchStart = (e) => {
     if (!isImage) return;
-
     if (e.touches.length === 1) {
       if (zoom > 1) {
         setIsDragging(true);
@@ -139,7 +184,6 @@ const isTextOrLog = urlLower.endsWith('.log') ||
 
   const handleTouchMove = (e) => {
     if (!isImage) return;
-
     if (e.touches.length === 1 && isDragging) {
       setPosition({
         x: e.touches[0].clientX - dragStart.x,
@@ -150,7 +194,6 @@ const isTextOrLog = urlLower.endsWith('.log') ||
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
-      
       const factor = dist / touchStartDist;
       setTouchStartDist(dist);
       setZoom(prevZoom => Math.max(0.5, Math.min(4, prevZoom * factor)));
@@ -167,20 +210,14 @@ const isTextOrLog = urlLower.endsWith('.log') ||
       const trimmedUrl = activeModalUrl?.trim() || "";
       const url = new URL(trimmedUrl);
       let videoId = "";
-
       if (url.pathname.includes('/shorts/')) {
         videoId = url.pathname.split('/').pop();
-      } 
-      else if (url.hostname.includes('youtu.be')) {
+      } else if (url.hostname.includes('youtu.be')) {
         videoId = url.pathname.slice(1);
-      } 
-      else {
+      } else {
         videoId = url.searchParams.get('v');
       }
-
-      return videoId 
-        ? `https://www.youtube.com/embed/${videoId}?autoplay=1` 
-        : trimmedUrl;
+      return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1` : trimmedUrl;
     } catch {
       return activeModalUrl;
     }
@@ -196,11 +233,29 @@ const isTextOrLog = urlLower.endsWith('.log') ||
         className="flex justify-between items-center bg-gray-900/80 p-3 rounded-lg border border-gray-800 w-full max-w-5xl mx-auto mb-2 shrink-0"
         onClick={e => e.stopPropagation()}
       >
-        <span className="text-xs font-mono text-gray-300 truncate max-w-[50%]">
+        <span className="text-xs font-mono text-gray-300 truncate max-w-[40%]">
           {dosyaAdiniAyıkla ? dosyaAdiniAyıkla(activeModalUrl) : 'Dosya Önizleme'}
         </span>
         
         <div className="flex gap-2 items-center">
+          {/* 🌐 HTML & HTM için Canlı Önizleme ve Kod Görünümü Butonları */}
+          {isHtml && (
+            <div className="flex bg-gray-800 p-0.5 rounded border border-gray-700 text-[10px] font-bold mr-1">
+              <button 
+                onClick={() => setHtmlViewMode('live')} 
+                className={`px-2 py-1 rounded transition-colors ${htmlViewMode === 'live' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                GERÇEK ÇIKTI (RENDER)
+              </button>
+              <button 
+                onClick={() => setHtmlViewMode('code')} 
+                className={`px-2 py-1 rounded transition-colors ${htmlViewMode === 'code' ? 'bg-emerald-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+              >
+                KODU GÖR
+              </button>
+            </div>
+          )}
+
           {isImage && (
             <div className="flex items-center bg-gray-800 rounded border border-gray-700 overflow-hidden text-white mr-1">
               <button onClick={() => setZoom(z => Math.max(z - 0.25, 0.5))} className="px-3 py-1 hover:bg-gray-700 font-bold text-xs border-r border-gray-700">-</button>
@@ -224,14 +279,12 @@ const isTextOrLog = urlLower.endsWith('.log') ||
         className="flex-1 w-full max-w-5xl mx-auto flex items-center justify-center overflow-hidden bg-gray-950 rounded-xl border border-gray-800 relative"
         onClick={e => e.stopPropagation()}
         
-        // Masaüstü Dinleyicileri
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
         
-        // Mobil & Tablet Dokunmatik Dinleyicileri
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -260,7 +313,6 @@ const isTextOrLog = urlLower.endsWith('.log') ||
             <video src={activeModalUrl} controls autoPlay className="w-full max-h-[75vh] rounded-lg bg-black" />
           
           ) : isAudio ? (
-            /* 🚀 SES DOSYALARI İÇİN ÖZEL PANEL ALANI */
             <div className="w-full max-w-md bg-gray-900 border border-gray-800 p-6 rounded-xl flex flex-col items-center gap-4 shadow-2xl border-t-4 border-t-emerald-500">
               <span className="text-4xl animate-pulse">🎵</span>
               <div className="text-center w-full min-w-0">
@@ -272,10 +324,30 @@ const isTextOrLog = urlLower.endsWith('.log') ||
               <audio src={activeModalUrl} controls autoPlay className="w-full accent-emerald-500 mt-2" />
             </div>
 
+          /* 🌐 KOD & CANLI HTML GÖRÜNÜM ALANI */
           ) : isLogOrTxt ? (
-            <div className="w-full h-full max-h-[75vh] bg-gray-900 border border-gray-800 rounded-lg p-4 font-mono text-xs text-emerald-400 overflow-auto whitespace-pre select-text text-left shadow-inner border-t-4 border-t-emerald-600">
-              {textLoading ? <div className="text-gray-400 animate-pulse">Dosya yükleniyor...</div> : <code>{textContent}</code>}
-            </div>
+            isHtml && htmlViewMode === 'live' ? (
+              textLoading ? (
+                <div className="text-gray-400 animate-pulse">Gerçek çıktı yükleniyor...</div>
+              ) : htmlBlobUrl ? (
+                /* ✅ Kesin Çözüm: Güvenli, izole ve sunucu header'larından bağımsız çalışan iframe */
+                <div className="w-full h-full max-h-[75vh] bg-white rounded-lg overflow-hidden shadow-inner">
+                  <iframe 
+                    src={htmlBlobUrl} 
+                    title="HTML Gerçek Çıktı" 
+                    className="w-full h-full border-0 bg-white" 
+                    sandbox="allow-scripts" // Güvenli sandbox katmanı
+                  />
+                </div>
+              ) : (
+                <div className="text-red-400 font-mono text-xs">HTML çıktısı hazırlanırken hata oluştu.</div>
+              )
+            ) : (
+              /* ✅ HTML Kodu Gösterimi veya Diğer Düz Metin Dosyaları (.txt, .log, .json, .py vb.) */
+              <div className="w-full h-full max-h-[75vh] bg-gray-900 border border-gray-800 rounded-lg p-4 font-mono text-xs text-emerald-400 overflow-auto whitespace-pre select-text text-left shadow-inner border-t-4 border-t-emerald-600">
+                {textLoading ? <div className="text-gray-400 animate-pulse">Dosya yükleniyor...</div> : <code>{textContent}</code>}
+              </div>
+            )
           ) : isUniversalDoc ? (
             <div 
               className="w-full bg-white rounded-lg overflow-hidden"
